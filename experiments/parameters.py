@@ -8,10 +8,10 @@ import logging
 import os
 
 """ GENERAL PARAMETERS """
-folder_name = "exp1"
-img_folder_name = "flow_300_100"    # must be in cwd
+folder_name = "experiments"
+img_folder_name = "flow"            # must be in cwd
                                     # where the training dataset is
-folder_path = "exp1"                # the folder to create and store all the files 
+folder_path = "exp2"                # the folder to create and store all the files 
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -31,33 +31,35 @@ load_and_train = False              # if it's true, it loads the model from chec
 
 
 # MODEL PARAMETERS
-image_size = (96, 296)          
+image_size = (200, 600)              # for 100x300 is 96, 296 (for 3 downsampling blocks)
+                                     # for 200x600 is 200, 600 (for 2 downsampling blocks)
+
 seed = 42
 validation_split = 0.2
 pad_to_aspect_ratio = False
 crop_to_aspect_ratio = True     
 
-num_epochs = 1
+num_epochs = 200
 batch_size = 12
-dataset_repetitions = 5
+dataset_repetitions = 1
 ema = 0.999
-learning_rate = 1e-3
+learning_rate = 1e-4
 weight_decay = 1e-4
 
-kid_image_size = 128      
-plot_diffusion_steps = 25 
+kid_image_size = 75      
+plot_diffusion_steps = 20
 kid_diffusion_steps = 5
 
-min_signal_rate = 0.1
-max_signal_rate = 0.5
+min_signal_rate = 0.02
+max_signal_rate = 0.95
 
-embedding_dims = 128
+embedding_dims = 32
 widths = [32, 64, 96, 128] 
 block_depth = 2
 
 """ INFERENCE PARAMETERS """
 images_to_generate = 5
-generate_diffusion_steps = 40
+generate_diffusion_steps = 50
 
 # Log all variables
 logging.info(f'GENERAL PARAMETERS:\nfolder_name: {folder_name}\nimg_folder_name: {img_folder_name}\nfolder_path: {folder_path}')

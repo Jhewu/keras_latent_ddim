@@ -232,7 +232,7 @@ class DiffusionModel(keras.Model):
 
         return {m.name: m.result() for m in self.metrics}
 
-    def plot_images(self, epoch=None, logs=None, num_rows=3, num_cols=6):
+    def plot_images(self, epoch=None, logs=None, num_rows=3, num_cols=3):
         # generates random images for visual evaluation.
         # plots a grid of generated images.
         # useful for assessing the quality of generated samples during training.

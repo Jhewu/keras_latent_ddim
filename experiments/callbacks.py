@@ -7,6 +7,8 @@ FOR THE DIFFUSION MODEL
 # import necessary libraries
 import keras
 import csv
+import tensorflow as tf
+import numpy
 
 #import form local script
 from parameters import folder_path
@@ -43,12 +45,12 @@ Ensure we are not wasting resources
 """
 early_stop_callback = keras.callbacks.EarlyStopping(
     monitor="val_kid", 
-    min_delta=1e-3,
-    patience=3,
+    min_delta=1e-4,
+    patience=50,
     verbose=1,
     mode="min",
     restore_best_weights=True,
-    start_from_epoch=50,
+    start_from_epoch=75,
 )
 
 """
@@ -66,11 +68,18 @@ class CustomCSVLogger(keras.callbacks.Callback):
     def on_train_begin(self, logs=None):
         self.file = open(self.file_path, 'w', newline='')
         self.writer = csv.writer(self.file)
-        self.writer.writerow(['epoch', 'accuracy', 'val_accuracy', 'val_loss'])
+        self.writer.writerow(['i_loss', 'n_loss', 'val_ai_loss', 'val_kid', "val_n_loss"])
 
     def on_epoch_end(self, epoch, logs=None):
-        row = [epoch, logs.get('accuracy'), logs.get('val_accuracy'), logs.get('val_loss')]
-        self.writer.writerow(row)
+        if logs is not None: 
+                row = [epoch]
+                for metrics in ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]:
+                    value = logs.get(metrics, "N/A")
+                    if isinstance(value, tf.Tensor): 
+                         value = value.numpy()
+                    row.append(value) # add "N/A" if the metric is not found
+                # row = [epoch, logs.get('accuracy'), logs.get('val_accuracy'), logs.get('val_loss')]
+                self.writer.writerow(row)
 
     def on_train_end(self, logs=None):
         self.file.close()

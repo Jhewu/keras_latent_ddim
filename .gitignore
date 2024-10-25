@@ -10,6 +10,7 @@ balanced_3/
 balanced_4/
 balanced_5/
 balanced_6/
+label_3/
 .DS_Store
 .ipynb_checkpoints/
 .virtual_documents/
@@ -28,3 +29,4 @@ csv_callback.csv
 model_parameters.log
 training_loss.png
 error.log
+flow/
