@@ -11,7 +11,7 @@ import tensorflow as tf
 import numpy
 
 #import form local script
-from parameters import folder_path
+from parameters import folder_path, checkpoint_monitor, early_stop_monitor, early_stop_patience, early_stop_start_epoch, early_stop_min_delta
 
 """ 
 Create Custom Callback 
@@ -33,7 +33,7 @@ checkpoint_path = f"{folder_path}/diffusion_model.weights.h5"
 checkpoint_callback = keras.callbacks.ModelCheckpoint(
     filepath=checkpoint_path,
     save_weights_only=True,
-    monitor="val_kid",
+    monitor=checkpoint_monitor,
     mode="min",
     save_best_only=True,)
 
@@ -44,13 +44,13 @@ Early Stopping Callback
 Ensure we are not wasting resources
 """
 early_stop_callback = keras.callbacks.EarlyStopping(
-    monitor="val_kid", 
-    min_delta=1e-4,
-    patience=50,
+    monitor=early_stop_monitor, 
+    min_delta=early_stop_min_delta,
+    patience=early_stop_patience,
     verbose=1,
     mode="min",
     restore_best_weights=True,
-    start_from_epoch=75,
+    start_from_epoch=early_stop_start_epoch,
 )
 
 """
