@@ -45,7 +45,7 @@ num_epochs = 100
 batch_size = 4
 dataset_repetitions = 1
 ema = 0.999
-learning_rate = 1e-4
+learning_rate = 3e-4
 weight_decay = 1e-4
 
 # KID eval
@@ -65,7 +65,7 @@ block_depth = 2
 # callback param
 checkpoint_monitor = "val_kid"
 early_stop_monitor = "val_kid"
-early_stop_min_delta = 1e-5
+early_stop_min_delta = 3e-5
 early_stop_patience = 50
 early_stop_start_epoch = 100
 

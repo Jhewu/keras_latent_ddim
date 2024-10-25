@@ -5,53 +5,53 @@
 # test. 
 
 #----------PARAMETERS----------
-folder_paths=("exp3")
+folder_paths=("exp3" "exp4" "exp5" "exp6" "exp7" "exp8" "exp9")
 train_model_list=(True)
 load_and_train_list=(False)
-image_sizes=("200,600")
+image_sizes=("200,600" "200,600" "200,600" "200,600" "200,600" "200,600" "200,600")
 num_epochs_list=(100)
-batch_sizes=(4)
-learning_rates=(1e-4)
+batch_sizes=(4 4 4 4 2 4 2)
+learning_rates=(3e-4 1e-3 3e-4 3e-4 2e-4 3e-4 2e-4)
 weight_decays=(1e-4)
 kid_image_sizes=(75)
 plot_diffusion_steps_list=(20)
 kid_diffusion_steps_list=(5)
-min_signal_rates=(0.02)
-max_signal_rates=(0.95)
+min_signal_rates=(0.02 0.02 0.02 0.02 0.02 0.1 0.02)
+max_signal_rates=(0.95 0.95 0.95 0.95 0.95 0.5 0.95)
 embedding_dims_list=(32)
-widths_list=("32, 64, 96, 128")
-block_depth_list=(2)
+widths_list=("32, 64, 96, 128" "32, 64, 96, 128" "64, 96, 128, 256" "64, 96, 128, 256" "64, 96, 128, 256, 384" "32, 64, 96, 128" "32, 64, 128, 256")
+block_depth_list=(2 2 2 3 3 2 3)
 checkpoint_monitor_list=("val_kid")
 early_stop_monitor_list=("val_kid")
-early_stop_min_delta_list=(1e-5)
+early_stop_min_delta_list=(3e-5 1e-4 3e-5 3e-5 2e-5 3e-5 1e-4)
 early_stop_patience_list=(50)
 early_stop_start_epoch_list=(100)
 images_to_generate_list=(5)
 generate_diffusion_steps_list=(50)
 
 #----------RUNTIME----------
-for i in ${!image_sizes[@]}
+for i in ${!folder_paths[@]}
 do
     # Modify paramters.py 
-    sed -i "s/folder_path = .*/folder_path = \"${folder_paths[0]}\"/" parameters.py
+    sed -i "s/folder_path = .*/folder_path = \"${folder_paths[i]}\"/" parameters.py
     sed -i "s/train_model = .*/train_model = ${train_model_list[0]}/" parameters.py
     sed -i "s/load_and_train = .*/load_and_train = ${load_and_train_list[0]}/" parameters.py
-    sed -i "s/image_size = .*/image_size = (${image_sizes[0]})/" parameters.py
+    sed -i "s/image_size = .*/image_size = (${image_sizes[i]})/" parameters.py
     sed -i "s/num_epochs = .*/num_epochs = ${num_epochs_list[0]}/" parameters.py
-    sed -i "s/batch_size = .*/batch_size = ${batch_sizes[0]}/" parameters.py
-    sed -i "s/learning_rate = .*/learning_rate = ${learning_rates[0]}/" parameters.py
+    sed -i "s/batch_size = .*/batch_size = ${batch_sizes[i]}/" parameters.py
+    sed -i "s/learning_rate = .*/learning_rate = ${learning_rates[i]}/" parameters.py
     sed -i "s/weight_decay = .*/weight_decay = ${weight_decays[0]}/" parameters.py
     sed -i "s/kid_image_size = .*/kid_image_size = ${kid_image_sizes[0]}/" parameters.py
     sed -i "s/plot_diffusion_steps = .*/plot_diffusion_steps = ${plot_diffusion_steps_list[0]}/" parameters.py
     sed -i "s/kid_diffusion_steps = .*/kid_diffusion_steps = ${kid_diffusion_steps_list[0]}/" parameters.py
-    sed -i "s/min_signal_rate = .*/min_signal_rate = ${min_signal_rates[0]}/" parameters.py
-    sed -i "s/max_signal_rate = .*/max_signal_rate = ${max_signal_rates[0]}/" parameters.py
+    sed -i "s/min_signal_rate = .*/min_signal_rate = ${min_signal_rates[i]}/" parameters.py
+    sed -i "s/max_signal_rate = .*/max_signal_rate = ${max_signal_rates[i]}/" parameters.py
     sed -i "s/embedding_dims = .*/embedding_dims = ${embedding_dims_list[0]}/" parameters.py
-    sed -i "s/widths = .*/widths = [${widths_list[0]}]/" parameters.py
-    sed -i "s/block_depth = .*/block_depth = ${block_depth_list[0]}/" parameters.py
+    sed -i "s/widths = .*/widths = [${widths_list[i]}]/" parameters.py
+    sed -i "s/block_depth = .*/block_depth = ${block_depth_list[i]}/" parameters.py
     sed -i "s/checkpoint_monitor = .*/checkpoint_monitor = \"${checkpoint_monitor_list[0]}\"/" parameters.py
     sed -i "s/early_stop_monitor = .*/early_stop_monitor = \"${early_stop_monitor_list[0]}\"/" parameters.py
-    sed -i "s/early_stop_min_delta = .*/early_stop_min_delta = ${early_stop_min_delta_list[0]}/" parameters.py
+    sed -i "s/early_stop_min_delta = .*/early_stop_min_delta = ${early_stop_min_delta_list[i]}/" parameters.py
     sed -i "s/early_stop_patience = .*/early_stop_patience = ${early_stop_patience_list[0]}/" parameters.py
     sed -i "s/early_stop_start_epoch = .*/early_stop_start_epoch = ${early_stop_start_epoch_list[0]}/" parameters.py
     sed -i "s/images_to_generate = .*/images_to_generate = ${images_to_generate_list[0]}/" parameters.py
