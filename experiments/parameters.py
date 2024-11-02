@@ -68,6 +68,7 @@ early_stop_monitor = "val_kid"
 early_stop_min_delta = 2.5e-5
 early_stop_patience = 25
 early_stop_start_epoch = 50
+plot_on_epoch = 100000
 
 """ INFERENCE PARAMETERS """
 images_to_generate = 5

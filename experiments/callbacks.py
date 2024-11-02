@@ -11,7 +11,7 @@ import tensorflow as tf
 import numpy
 
 #import form local script
-from parameters import folder_path, checkpoint_monitor, early_stop_monitor, early_stop_patience, early_stop_start_epoch, early_stop_min_delta
+from parameters import folder_path, checkpoint_monitor, early_stop_monitor, early_stop_patience, early_stop_start_epoch, early_stop_min_delta, plot_on_epoch
 
 """ 
 Create Custom Callback 
@@ -21,7 +21,7 @@ saving computer resource
 """
 class CustomCallback(keras.callbacks.Callback): 
     def on_epoch_end(self, epoch, logs=None): 
-        if (epoch + 1) % 1000 == 0: 
+        if (epoch + 1) % plot_on_epoch == 0: 
             self.model.plot_images()
 
 """
