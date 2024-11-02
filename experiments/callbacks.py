@@ -21,7 +21,7 @@ saving computer resource
 """
 class CustomCallback(keras.callbacks.Callback): 
     def on_epoch_end(self, epoch, logs=None): 
-        if (epoch + 1) % 10 == 0: 
+        if (epoch + 1) % 1000 == 0: 
             self.model.plot_images()
 
 """
