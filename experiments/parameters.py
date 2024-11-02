@@ -11,7 +11,7 @@ import os
 folder_name = "experiments"
 img_folder_name = "flow"            # must be in cwd
                                     # where the training dataset is
-folder_path = "exp39"
+folder_path = "exp35"
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -42,10 +42,10 @@ crop_to_aspect_ratio = True
 
 # optimization
 num_epochs = 100
-batch_size = 1
+batch_size = 4
 dataset_repetitions = 1
 ema = 0.999
-learning_rate = 1.2e-4
+learning_rate = 2.5e-4
 weight_decay = 1e-4
 
 # KID eval
@@ -59,13 +59,13 @@ max_signal_rate = 0.95
 
 # u-net architecture
 embedding_dims = 128
-widths = [16, 64, 96, 128]
+widths = [64, 96, 128, 256]
 block_depth = 3
 
 # callback param
 checkpoint_monitor = "val_kid"
 early_stop_monitor = "val_kid"
-early_stop_min_delta = 1.2e-5
+early_stop_min_delta = 2.5e-5
 early_stop_patience = 25
 early_stop_start_epoch = 50
 

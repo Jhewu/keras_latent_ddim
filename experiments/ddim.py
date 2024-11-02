@@ -17,6 +17,7 @@ import tensorflow as tf
 import keras
 import cv2 as cv
 import logging
+from datetime import datetime
 
 # import from local scripts
 from diffusion_model import DiffusionModel
@@ -175,11 +176,12 @@ def InferenceDiffusionModel():
     if not os.path.exists(generated_dir): 
         os.makedirs(generated_dir)
 
-    index = 0
+    index = 1
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     for image in generated_images: 
-        tf.keras.preprocessing.image.save_img(f"{generated_dir}/generated_img_{index}.jpg",image)
-        #cv.imwrite(f"{generated_dir}/generated_img_{index}.jpg", image)
-        index+=1
+        tf.keras.preprocessing.image.save_img(f"{generated_dir}/generated_img_{index}_at{timestamp}.jpg",image)
+        index = index + 1
+
 
 if __name__ == "__main__":
     """ 
