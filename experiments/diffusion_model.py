@@ -11,6 +11,7 @@ import keras
 from keras import layers
 from keras import ops
 import os
+import numpy as np
 
 # import from local scripts
 from u_net import get_network
@@ -52,7 +53,7 @@ class DiffusionModel(keras.Model):
         return ops.clip(images, 0.0, 1.0)
 
     def diffusion_schedule(self, diffusion_times):
-            # calculates the noise_rates and the signal_rates
+        # calculates the noise_rates and the signal_rates
         
         # convert diffusion times to angles
         start_angle = ops.cast(ops.arccos(max_signal_rate), "float32")
@@ -68,8 +69,8 @@ class DiffusionModel(keras.Model):
         return noise_rates, signal_rates
 
     def denoise(self, noisy_images, noise_rates, signal_rates, training):
-            # predicts noise components and calculate image components
-            # it uses the network (either main or EMA) based on the training mode
+        # predicts noise components and calculate image components
+        # it uses the network (either main or EMA) based on the training mode
         
         # the exponential moving average weights are used at evaluation
         if training:
@@ -102,6 +103,8 @@ class DiffusionModel(keras.Model):
             # separate the current noisy image to its components
             diffusion_times = ops.ones((num_images, 1, 1, 1)) - step * step_size
             noise_rates, signal_rates = self.diffusion_schedule(diffusion_times) # obtain noise_rates and signal_rates
+            #print(f"\nthis is noise_rate {noise_rates}\n")
+            #print(f"\nthis is signal_rate {signal_rates}\n")
             pred_noises, pred_images = self.denoise(
                 noisy_images, noise_rates, signal_rates, training=False
             )
@@ -118,8 +121,43 @@ class DiffusionModel(keras.Model):
             # this new noisy image will be used in the next step
 
         return pred_images
+    
+    def reverse_diffusion_single(self, initial_noise, diffusion_steps):
+        """
+        Custom Reverse Diffusion 
+        - Performs reverse diffusion (sampling), not simultaneously, but per image
+        - The processing time will be longer, but it requires less GPU ram
+        """
 
-    def generate(self, num_images, diffusion_steps):
+        step_size = 1.0 / diffusion_steps
+        pred_images = []
+
+        for i in range(initial_noise.shape[0]):  # Iterate over each image
+            next_noisy_image = initial_noise[i]
+            
+            for step in range(diffusion_steps):
+                noisy_image = next_noisy_image
+
+                # Separate the current noisy image to its components
+                diffusion_time = ops.ones((1, 1, 1, 1)) - step * step_size
+                noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)          
+                pred_noise, pred_image = self.denoise(
+                    noisy_image[None, ...], noise_rate, signal_rate, training=False
+                ) # Network used in eval mode
+
+                # Remix the predicted components using the next signal and noise rates
+                next_diffusion_time = diffusion_time - step_size
+                next_noise_rate, next_signal_rate = self.diffusion_schedule(next_diffusion_time)
+                next_noisy_image = (
+                    next_signal_rate * pred_image + next_noise_rate * pred_noise
+                )[0]
+                # This new noisy image will be used in the next step
+
+            pred_images.append(pred_image[0])
+
+        return np.stack(pred_images)
+
+    def generate(self, num_images, diffusion_steps, single):
         """
         IMPORTANT
         """
@@ -128,9 +166,13 @@ class DiffusionModel(keras.Model):
         initial_noise = keras.random.normal(
             shape=(num_images, image_size[0], image_size[1], 3)
         )
-        generated_images = self.reverse_diffusion(initial_noise, diffusion_steps)
-        generated_images = self.denormalize(generated_images)
-            # denormalize is to take an image and convert it back to [0, 256] RGB
+        if single == True:
+            generated_images = self.reverse_diffusion_single(initial_noise, diffusion_steps)
+            generated_images = self.denormalize(generated_images)
+        else:
+            generated_images = self.reverse_diffusion(initial_noise, diffusion_steps)
+            generated_images = self.denormalize(generated_images)
+                # denormalize is to take an image and convert it back to [0, 256] RGB
         return generated_images
 
     def train_step(self, images):
@@ -260,3 +302,109 @@ class DiffusionModel(keras.Model):
         plt.savefig(f"{plot_dir}/checkpoint_inference{timestamp}.png")
         #plt.show()
         plt.close()
+    def inpaint(self, diffusion_steps=plot_diffusion_steps):
+        """
+        Custom inplementation of RePaint by using
+        the diffusion model's reverse_diffusion
+        """
+        # original_img, mask, diffusion_steps, refinement_steps
+
+        print("Hello World")
+
+        # initialize the random noise
+        initial_noise = keras.random.normal(
+            shape=(image_size[0], image_size[1], 3)
+        )
+        step_size = 1.0 / diffusion_steps
+
+        print(initial_noise)
+
+
+
+
+        # # important line:
+        #     # at the first sampling step, the "noisy image" is pure noise
+        #     # but its signal rate is assumed to be nonzero (min_signal_rate)
+        # next_noisy_images = initial_noise
+        # for step in range(diffusion_steps):
+        #     noisy_images = next_noisy_images
+
+        #     # separate the current noisy image to its components
+        #     diffusion_times = ops.ones((num_images, 1, 1, 1)) - step * step_size
+        #     noise_rates, signal_rates = self.diffusion_schedule(diffusion_times) # obtain noise_rates and signal_rates
+        #     pred_noises, pred_images = self.denoise(
+        #         noisy_images, noise_rates, signal_rates, training=False
+        #     )
+        #     # network used in eval mode
+
+        #     # remix the predicted components using the next signal and noise rates
+        #     next_diffusion_times = diffusion_times - step_size
+        #     next_noise_rates, next_signal_rates = self.diffusion_schedule(
+        #         next_diffusion_times
+        #     )
+        #     next_noisy_images = (
+        #         next_signal_rates * pred_images + next_noise_rates * pred_noises
+        #     )
+        #     # this new noisy image will be used in the next step
+
+        # return pred_images
+
+
+    """
+        
+    function RePaint_DDIM(x0, mask, T, U, model):
+    // x0: original image
+    // mask: binary mask indicating known (1) and unknown (0) regions
+    // T: number of total diffusion steps
+    // U: number of refinement steps
+    // model: trained diffusion model (εθ)
+
+    // Step 1: Initialize random noise
+    xT ~ N(0, I) // Generate random noise
+
+    // Step 2: Loop through diffusion steps
+    for t from T down to 1 do
+        // Step 3: Loop through refinement steps
+        for u from 1 to U do
+            // Step 4: Sample noise
+            if t > 1 then
+                ϵ ~ N(0, I) // Sample noise
+            else
+                ϵ = 0 // No noise at the final step
+
+            // Step 5: Compute known part
+            x_known_t_minus_1 = sqrt(ᾱ_t) * x0 + (1 - ᾱ_t) * ϵ
+
+            // Step 6: Sample z for unknown part
+            if t > 1 then
+                z ~ N(0, I) // Sample noise
+            else
+                z = 0 // No noise at the final step
+
+            // Step 7: Compute unknown part
+            x_unknown_t_minus_1 = (1 / sqrt(α_t)) * (xt - β_t * sqrt(1 - ᾱ_t) * εθ(xt, t)) + σ_t * z
+
+            // Step 8: Combine known and unknown parts
+            xt_minus_1 = m * x_known_t_minus_1 + (1 - m) * x_unknown_t_minus_1
+
+            // Step 9: Resample xt if not the last refinement step
+            if u < U and t > 1 then
+                xt ~ N(sqrt(1 - β_t_minus_1) * xt_minus_1, β_t_minus_1 * I)
+            end if
+        end for
+    end for
+
+    // Step 14: Return the final inpainted image
+    return x0
+
+        
+        
+        
+        
+        
+        
+        
+        
+        """
+
+    

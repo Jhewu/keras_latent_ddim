@@ -26,6 +26,9 @@ from parameters import *
 
 """ HELPER FUNCTIONS """
 def load_dataset(): 
+    """
+    Loads the dataset for training
+    """
     cwd = os.getcwd()
     img_dir = os.path.join(cwd, img_folder_name)
     train_ds = tf.keras.preprocessing.image_dataset_from_directory(
@@ -56,7 +59,43 @@ def load_dataset():
     )
     return train_ds, val_ds
 
+def load_inpainting_data(): 
+    """
+    Returns the list of files in the image and mask directory for inpainting
+    """
+    # Get both the directory of the images and the masks
+    cwd = os.getcwd()
+    inpaint_folder = os.path.join(cwd, inpainting_dir)
+    img_folder = os.path.join(inpaint_folder, inpaint_img)
+    mask_folder = os.path.joni(inpaint_folder, inpaint_mask)
+
+    # Get the lists of files in both directories
+    img_list = os.listdir(img_folder)
+    mask_list = os.listdir(mask_folder)
+
+    return sorted(img_list), sorted(mask_list)
+
+
+def load_inpainting_data_temp(): 
+    cwd = os.getcwd()
+    folder_name = "mask_and_images"
+    inpainting_folder = os.path.join(cwd, folder_name)
+
+    image_name = "image1.jpg"
+    mask_name = "image1_mask.jpg"
+
+    image_folder = os.path.join(inpainting_folder, image_name)
+    mask_folder = os.path.join(inpainting_folder, mask_name)
+
+    image = cv.imread(image_folder)
+    mask = cv.imread(mask_folder)
+
+    return image, mask
+
 def prepare_dataset(train_ds, val_ds): 
+    """
+    Prepares the dataset for training, used in combination with load_dataset
+    """
     train_ds = (train_ds
         .map(normalize_image, num_parallel_calls=tf.data.AUTOTUNE) # each dataset has the structure
         .cache()                                                   # (image, labels) when inputting to 
@@ -158,7 +197,7 @@ def TrainDiffusionModel():
 
 def InferenceDiffusionModel(): 
     """
-    Loading the saved model
+    This script is used for inference, reverse diffusion
     """
     train_dataset, val_dataset = load_dataset()
     train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
@@ -169,7 +208,7 @@ def InferenceDiffusionModel():
     model.load_weights(checkpoint_path)
 
     # generate the images
-    generated_images = model.generate(images_to_generate, generate_diffusion_steps)
+    generated_images = model.generate(images_to_generate, generate_diffusion_steps, True)
 
     # create a new directory
     generated_dir = os.path.join(folder_path, "generated_images")
@@ -177,10 +216,39 @@ def InferenceDiffusionModel():
         os.makedirs(generated_dir)
 
     index = 1
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     for image in generated_images: 
-        tf.keras.preprocessing.image.save_img(f"{generated_dir}/generated_img_{index}_at{timestamp}.jpg",image)
+        #tf.keras.preprocessing.image.save_img(f"{generated_dir}/generated_img_{index}_at{timestamp}.jpg",image)
+        tf.keras.preprocessing.image.save_img(f"{generated_dir}/{timestamp}_generated_img_{index}.jpg", image) 
+
         index = index + 1
+
+def ContextualInpainting():
+    """
+    This script is used for inpainting using a trained DDIM
+    """
+    train_dataset, val_dataset = load_dataset()
+    train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
+
+    # build and load the model
+    model = DiffusionModel(image_size, widths, block_depth)
+    model.normalizer.adapt(train_dataset) 
+    model.load_weights(checkpoint_path)
+
+    # load the data
+    # THE IMAGES NAME MUST BE THE SAME, OTHERWISE, IT WILL BE CONFUSED WITH
+    # img_list, mask_list = load_inpainting_data()
+    #image, mask = load_inpainting_data_temp()
+
+    # main runtime for each img, and each mask
+
+    model.inpaint()
+
+
+
+    
+    # Apply noise to the overall image e.g. modify the sampling process
+    # Combine using elementwise multiplication
 
 
 if __name__ == "__main__":
@@ -199,7 +267,7 @@ if __name__ == "__main__":
     # os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0' 
     # tf.config.optimizer.set_jit(False)
 
-    if train_model:
+    if runtime == "train":
         try: 
             # initialize logging
             logging.basicConfig(level=logging.INFO, filename=f"{folder_path}/{folder_path}error.log")
@@ -209,7 +277,7 @@ if __name__ == "__main__":
         except: 
             logging.error("ERROR: Script stopped running, could be due to memory allocation. Check terminal.")
 
-    else: 
+    elif runtime == "inference":
         if not os.path.exists(folder_path): 
             raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
         try: 
@@ -217,6 +285,19 @@ if __name__ == "__main__":
             print(f"\n Finish generating {images_to_generate}\n")
         except: 
             logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
+
+    elif runtime == "inpaint":
+        if not os.path.exists(folder_path): 
+            raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
+        try: 
+            ContextualInpainting()
+            print(f"\n Finish inpainting all the files in the {inpainting_dir} directory\n")
+        except: 
+            logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
+
+
+
+
 
 
 

@@ -9,9 +9,9 @@ import os
 
 """ GENERAL PARAMETERS """
 folder_name = "experiments"
-img_folder_name = "flow"            # must be in cwd
+img_folder_name = "flow_data"            # must be in cwd
                                     # where the training dataset is
-folder_path = "exp35"
+folder_path = "exp41"
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -24,9 +24,10 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
-train_model = False
-                                    # if True, it's in training mode
-                                    # if False, it's in inference mode
+runtime = "inference"
+                                    # if it's "train," it's in training mode
+                                    # if it's "inference," it's in inference mode
+                                    # if It's "inpaint," it's in inpainting mode
 load_and_train = False
 
 
@@ -71,12 +72,18 @@ early_stop_start_epoch = 50
 plot_on_epoch = 100000
 
 """ INFERENCE PARAMETERS """
-images_to_generate = 5
+images_to_generate = 1
 generate_diffusion_steps = 30
+
+
+""" INPAINTING PARAMETERS """
+inpainting_dir = "inpainting_data"
+inpaint_img = "inpaint_img"
+inpaint_mask = "inpaint_mask"
 
 # Log all variables
 logging.info(f'GENERAL PARAMETERS:\nfolder_name: {folder_name}\nimg_folder_name: {img_folder_name}\nfolder_path: {folder_path}')
-logging.info(f'TRAINING PARAMETERS:\ntrain_model: {train_model}\nload_and_train: {load_and_train}')
+logging.info(f'TRAINING PARAMETERS:\nmode: {runtime}\nload_and_train: {load_and_train}')
 logging.info(f'MODEL PARAMETERS:\nimage_size: {image_size}\nseed: {seed}\nvalidation_split: {validation_split}\npad_to_aspect_ratio: {pad_to_aspect_ratio}\ncrop_to_aspect_ratio: {crop_to_aspect_ratio}\nnum_epochs: {num_epochs}\nbatch_size: {batch_size}\ndataset_repetitions: {dataset_repetitions}\nema: {ema}\nlearning_rate: {learning_rate}\nweight_decay: {weight_decay}\nkid_image_size: {kid_image_size}\nplot_diffusion_steps: {plot_diffusion_steps}\nkid_diffusion_steps: {kid_diffusion_steps}\nmin_signal_rate: {min_signal_rate}\nmax_signal_rate: {max_signal_rate}\nembedding_dims: {embedding_dims}\nwidths: {widths}\nblock_depth: {block_depth}')
 logging.info(f'CALLBACK PARAMETERS:\ncheckpoint_monitor: {checkpoint_monitor}\nearly_stop_monitor: {early_stop_monitor}\nearly_stop_min_delta: {early_stop_min_delta}\nearly_stop_patience: {early_stop_patience}\nearly_stop_start_epoch: {early_stop_start_epoch}')
 logging.info(f'INFERENCE PARAMETERS:\nimages_to_generate: {images_to_generate}\ngenerate_diffusion_steps: {generate_diffusion_steps}')
