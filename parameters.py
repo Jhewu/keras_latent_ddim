@@ -8,7 +8,7 @@ import logging
 import os
 
 """ GENERAL PARAMETERS """
-folder_name = "ddim"
+folder_name = "ct_deep_river_diffusion"
 img_folder_name = "flow_small"            # must be in cwd
                                     # where the training dataset is
 folder_path = "all_exp/exp48"
@@ -24,7 +24,7 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
-runtime = "inference"
+runtime = "training"
                                     # if it's "train," it's in training mode
                                     # if it's "inference," it's in inference mode
                                     # if It's "inpaint," it's in inpainting mode
@@ -42,7 +42,7 @@ pad_to_aspect_ratio = False
 crop_to_aspect_ratio = True     
 
 # optimization
-num_epochs = 100
+num_epochs = 1
 batch_size = 4
 dataset_repetitions = 1
 ema = 0.999
@@ -59,7 +59,7 @@ min_signal_rate = 0.01 #0.02
 max_signal_rate = 0.98 #0.95
 
 # u-net architecture
-embedding_dims = 32
+embedding_dims = 128
 widths = [64, 96, 128, 256]
 block_depth = 3
 

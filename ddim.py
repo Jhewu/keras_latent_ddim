@@ -190,10 +190,9 @@ def TrainDiffusionModel():
         ],
     )
 
-    #shutil.copy(parameters
-    
-     #   plt.savefig(f"{folder_path}/training_loss.png")
-
+    # copy parameters file into the experiment folder
+    shutil.copy("parameters.py", f"{folder_path}/")
+    print(f"Parameters copied to {folder_path}/\n")
 
     # Save the key loss metrics 
     dict_key_list = ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]
@@ -277,7 +276,7 @@ if __name__ == "__main__":
     # os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0' 
     # tf.config.optimizer.set_jit(False)
 
-    if runtime == "train":
+    if runtime == "training":
         try: 
             # initialize logging
             logging.basicConfig(level=logging.INFO, filename=f"{folder_path}/{folder_path}error.log")
