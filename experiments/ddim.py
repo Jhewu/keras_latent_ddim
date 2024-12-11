@@ -238,13 +238,17 @@ def ContextualInpainting():
     # load the data
     # THE IMAGES NAME MUST BE THE SAME, OTHERWISE, IT WILL BE CONFUSED WITH
     # img_list, mask_list = load_inpainting_data()
-    #image, mask = load_inpainting_data_temp()
+    image, mask = load_inpainting_data_temp()
 
     # main runtime for each img, and each mask
 
-    model.inpaint()
+    print("\n The program is currently running \n")
 
+    inpainted_img = model.inpaint(image, mask, plot_diffusion_steps)
 
+    cv.imshow('Image', inpainted_img) 
+    cv.waitKey(0) 
+    cv.destroyAllWindows()
 
     
     # Apply noise to the overall image e.g. modify the sampling process
@@ -259,6 +263,8 @@ if __name__ == "__main__":
     """
     print(keras.__version__)
     print(tf.__version__)
+
+    print(f"\nNum GPUs Available: {len(tf.config.list_physical_devices('GPU'))}\n")
 
     warnings.filterwarnings('ignore')
     os.environ["KERAS_BACKEND"] = "tensorflow"
@@ -286,14 +292,14 @@ if __name__ == "__main__":
         except: 
             logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
 
-    elif runtime == "inpaint":
-        if not os.path.exists(folder_path): 
-            raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
-        try: 
-            ContextualInpainting()
-            print(f"\n Finish inpainting all the files in the {inpainting_dir} directory\n")
-        except: 
-            logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
+    # elif runtime == "inpaint":
+    #     if not os.path.exists(folder_path): 
+    #         raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
+    #     try: 
+    #         ContextualInpainting()
+    #         print(f"\n Finish inpainting all the files in the {inpainting_dir} directory\n")
+    #     except: 
+    #         logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
 
 
 

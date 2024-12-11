@@ -152,9 +152,7 @@ class DiffusionModel(keras.Model):
                     next_signal_rate * pred_image + next_noise_rate * pred_noise
                 )[0]
                 # This new noisy image will be used in the next step
-
             pred_images.append(pred_image[0])
-
         return np.stack(pred_images)
 
     def generate(self, num_images, diffusion_steps, single):
@@ -268,7 +266,7 @@ class DiffusionModel(keras.Model):
         # this is computationally demanding, kid_diffusion_steps has to be small
         images = self.denormalize(images)
         generated_images = self.generate(
-            num_images=batch_size, diffusion_steps=kid_diffusion_steps
+            num_images=batch_size, diffusion_steps=kid_diffusion_steps, single=False
         )
         self.kid.update_state(images, generated_images)
 
@@ -302,52 +300,128 @@ class DiffusionModel(keras.Model):
         plt.savefig(f"{plot_dir}/checkpoint_inference{timestamp}.png")
         #plt.show()
         plt.close()
-    def inpaint(self, diffusion_steps=plot_diffusion_steps):
-        """
-        Custom inplementation of RePaint by using
-        the diffusion model's reverse_diffusion
-        """
-        # original_img, mask, diffusion_steps, refinement_steps
 
-        print("Hello World")
+    # def inpaint(self, img, mask, diffusion_steps):  # ADD REFINEMENT STEPS (aka "JUMPS")
+    #     """
+    #     Custom implementation of RePaint by using
+    #     the diffusion model's reverse_diffusion with DDIM sampling
+    #     """
+        
+    #     # Normalize the original image and the mask to have a standard deviation of 1, like the noise
+    #     image = self.normalizer(img, training=False)
+    #     mask = self.normalizer(mask, training=False)
 
-        # initialize the random noise
-        initial_noise = keras.random.normal(
-            shape=(image_size[0], image_size[1], 3)
-        )
-        step_size = 1.0 / diffusion_steps
+    #     # Step 1: Initialize the random noise
+    #     initial_noise = tf.random.normal(shape=(1, image.shape[0], image.shape[1], 3))
 
-        print(initial_noise)
+    #     print(initial_noise)
+
+    #     # Step 2: Initialize noisy image (start with random noise)
+    #     noisy_image = initial_noise
+
+    #     # Step 3: Loop through diffusion steps
+    #     step_size = 1.0 / diffusion_steps
+
+    #     print("\n The program is currently running \n")
+
+    #     for step in range(diffusion_steps):
+    #         """
+    #         Refinement steps ("jumps") can be added later for further corrections
+    #         """
+    #         # Step 4: Compute current diffusion time (1 - step * step_size)
+    #         diffusion_time = tf.ones((1, 1, 1, 1)) - step * step_size
+
+    #         print(diffusion_time)
+
+    #         # Step 5: Compute noise and signal rates based on the diffusion schedule
+    #         noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)
+
+    #         print(noise_rate)
+
+    #         # Step 6: Predict noise and reconstructed image using the denoising model
+    #         pred_noise, pred_image = self.denoise(
+    #             noisy_image[None, ...], noise_rate, signal_rate, training=False
+    #         )  # Network in eval mode
+
+    #         print("\n This still works\n")
+
+    #         # **Step 5: Compute Known Pixels**
+    #         # The known part of the image should not be updated since we already know it
+    #         # Get the known region from the original image
+    #         known_image = signal_rate * image + noise_rate * pred_noise
+
+    #         # **Step 6: Compute Unknown Pixels Using DDIM**
+    #         # This is deterministic in DDIM, so no need for sampling
+    #         # Use the mask to handle the unknown part
+    #         unknown_image = signal_rate * pred_image + noise_rate * pred_noise
+
+    #         # **Step 8: Combine known and unknown parts using the mask**
+    #         next_image = mask * known_image + (1 - mask) * unknown_image
+
+    #         # Update the noisy image with the combined known and unknown parts
+    #         noisy_image = next_image  # Use next_image here for the next iteration!
+
+    #     # Final Step: Return the predicted inpainted image (final denoised image)
+    #     return pred_image[0]
+
+
+    # def inpaint(self, img, mask, diffusion_steps): # ADD REFINEMENT STEPS (aka "JUMPS")
+    #     """
+    #     Custom inplementation of RePaint by using
+    #     the diffusion model's reverse_diffusion
+    #     """
+        
+    #     # normalize the original image and the mask
+    #     # to have standard deviation of 1, like the noise
+    #     image = self.normalizer(img, training=False)
+    #     mask = self.normalizer(mask, training=False)
+
+
+
+    #     # Step 1: Initialize the random noise
+    #     initial_noise = keras.random.normal(
+    #         shape=(image_size[0], image_size[1], 3)
+    #     )
+
+    #     # Step 2: Loop through diffusion steps
+    #     step_size = 1.0 / diffusion_steps
+    #     for step in range(diffusion_steps):
+    #         """
+    #         Loop through refinements steps here ("jumps")
+    #         Will work on this later, after the regular inpainting works
+    #         """
+    #         noisy_image = next_noisy_image
+
+    #         """MIGHT NEED TO ADD THE IF CONDITION FROM THE BEGINNING"""
+
+
+    #         # Step 5: Compute Known part
+    #         # Calculate what the known (non-masked) pixels of the image should look like at the next time step
+    #         diffusion_time = ops.ones((1, 1, 1, 1)) - step * step_size
+    #         noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)  
+
+
+    #         # Step 6: Sample z from unknown part
+    #         # This step involves sampling new noise zz specifically for the unknown (masked) regions of the image.
+
+
+
+    #         pred_noise, pred_image = self.denoise(
+    #             noisy_image[None, ...], noise_rate, signal_rate, training=False
+    #         ) # Network used in eval mode
 
 
 
 
-        # # important line:
-        #     # at the first sampling step, the "noisy image" is pure noise
-        #     # but its signal rate is assumed to be nonzero (min_signal_rate)
-        # next_noisy_images = initial_noise
-        # for step in range(diffusion_steps):
-        #     noisy_images = next_noisy_images
 
-        #     # separate the current noisy image to its components
-        #     diffusion_times = ops.ones((num_images, 1, 1, 1)) - step * step_size
-        #     noise_rates, signal_rates = self.diffusion_schedule(diffusion_times) # obtain noise_rates and signal_rates
-        #     pred_noises, pred_images = self.denoise(
-        #         noisy_images, noise_rates, signal_rates, training=False
-        #     )
-        #     # network used in eval mode
-
-        #     # remix the predicted components using the next signal and noise rates
-        #     next_diffusion_times = diffusion_times - step_size
-        #     next_noise_rates, next_signal_rates = self.diffusion_schedule(
-        #         next_diffusion_times
-        #     )
-        #     next_noisy_images = (
-        #         next_signal_rates * pred_images + next_noise_rates * pred_noises
-        #     )
-        #     # this new noisy image will be used in the next step
-
-        # return pred_images
+    #         # Remix the predicted components using the next signal and noise rates
+    #         next_diffusion_time = diffusion_time - step_size
+    #         next_noise_rate, next_signal_rate = self.diffusion_schedule(next_diffusion_time)
+    #         next_noisy_image = (
+    #             next_signal_rate * pred_image + next_noise_rate * pred_noise
+    #         )[0]
+    #         # This new noisy image will be used in the next step
+    #     return pred_image[0]
 
 
     """

@@ -9,9 +9,9 @@ import os
 
 """ GENERAL PARAMETERS """
 folder_name = "experiments"
-img_folder_name = "flow_data"            # must be in cwd
+img_folder_name = "flow"            # must be in cwd
                                     # where the training dataset is
-folder_path = "exp41"
+folder_path = "exp46"
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -46,8 +46,8 @@ num_epochs = 100
 batch_size = 4
 dataset_repetitions = 1
 ema = 0.999
-learning_rate = 2.5e-4
-weight_decay = 1e-4
+learning_rate = 0.00025
+weight_decay = 0.0001
 
 # KID eval
 kid_image_size = 75
@@ -55,8 +55,8 @@ plot_diffusion_steps = 20
 kid_diffusion_steps = 5
 
 # sampling
-min_signal_rate = 0.02
-max_signal_rate = 0.95
+min_signal_rate = 0.01 #0.02
+max_signal_rate = 0.98 #0.95
 
 # u-net architecture
 embedding_dims = 128
@@ -72,7 +72,7 @@ early_stop_start_epoch = 50
 plot_on_epoch = 100000
 
 """ INFERENCE PARAMETERS """
-images_to_generate = 1
+images_to_generate = 5
 generate_diffusion_steps = 30
 
 
