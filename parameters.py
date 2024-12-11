@@ -13,6 +13,8 @@ img_folder_name = "flow_small"            # must be in cwd
                                     # where the training dataset is
 folder_path = "all_exp/exp48"
 
+run_description = "to test max signal rate"
+
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
     os.makedirs(folder_path)
@@ -75,19 +77,24 @@ plot_on_epoch = 100000
 images_to_generate = 5
 generate_diffusion_steps = 30
 
-
 """ INPAINTING PARAMETERS """
 inpainting_dir = "inpainting_data"
 inpaint_img = "inpaint_img"
 inpaint_mask = "inpaint_mask"
 
 # Log all variables
+logging.info("----------")
+logging.info(f"RUN DESCRIPTION:\n {run_description}\n")
 logging.info(f'GENERAL PARAMETERS:\nfolder_name: {folder_name}\nimg_folder_name: {img_folder_name}\nfolder_path: {folder_path}')
+logging.info("")
 logging.info(f'TRAINING PARAMETERS:\nmode: {runtime}\nload_and_train: {load_and_train}')
+logging.info("")
 logging.info(f'MODEL PARAMETERS:\nimage_size: {image_size}\nseed: {seed}\nvalidation_split: {validation_split}\npad_to_aspect_ratio: {pad_to_aspect_ratio}\ncrop_to_aspect_ratio: {crop_to_aspect_ratio}\nnum_epochs: {num_epochs}\nbatch_size: {batch_size}\ndataset_repetitions: {dataset_repetitions}\nema: {ema}\nlearning_rate: {learning_rate}\nweight_decay: {weight_decay}\nkid_image_size: {kid_image_size}\nplot_diffusion_steps: {plot_diffusion_steps}\nkid_diffusion_steps: {kid_diffusion_steps}\nmin_signal_rate: {min_signal_rate}\nmax_signal_rate: {max_signal_rate}\nembedding_dims: {embedding_dims}\nwidths: {widths}\nblock_depth: {block_depth}')
+logging.info("")
 logging.info(f'CALLBACK PARAMETERS:\ncheckpoint_monitor: {checkpoint_monitor}\nearly_stop_monitor: {early_stop_monitor}\nearly_stop_min_delta: {early_stop_min_delta}\nearly_stop_patience: {early_stop_patience}\nearly_stop_start_epoch: {early_stop_start_epoch}')
+logging.info("")
 logging.info(f'INFERENCE PARAMETERS:\nimages_to_generate: {images_to_generate}\ngenerate_diffusion_steps: {generate_diffusion_steps}')
-
+logging.info("----------")
 
 
 
