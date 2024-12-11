@@ -8,10 +8,10 @@ import logging
 import os
 
 """ GENERAL PARAMETERS """
-folder_name = "experiments"
-img_folder_name = "flow"            # must be in cwd
+folder_name = "ddim"
+img_folder_name = "flow_small"            # must be in cwd
                                     # where the training dataset is
-folder_path = "exp46"
+folder_path = "all_exp/exp48"
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -59,7 +59,7 @@ min_signal_rate = 0.01 #0.02
 max_signal_rate = 0.98 #0.95
 
 # u-net architecture
-embedding_dims = 128
+embedding_dims = 32
 widths = [64, 96, 128, 256]
 block_depth = 3
 

@@ -18,6 +18,7 @@ import keras
 import cv2 as cv
 import logging
 from datetime import datetime
+import shutil
 
 # import from local scripts
 from diffusion_model import DiffusionModel
@@ -75,11 +76,10 @@ def load_inpainting_data():
 
     return sorted(img_list), sorted(mask_list)
 
-
 def load_inpainting_data_temp(): 
     cwd = os.getcwd()
-    folder_name = "mask_and_images"
-    inpainting_folder = os.path.join(cwd, folder_name)
+    mask_folder_name = "mask_and_images"
+    inpainting_folder = os.path.join(cwd, mask_folder_name)
 
     image_name = "image1.jpg"
     mask_name = "image1_mask.jpg"
@@ -178,7 +178,6 @@ def TrainDiffusionModel():
     WHEN YOU WANT TO PERFORM INFERENCE BASED ON PREVIOUS
     WEIGHTS, COMMENT THIS BLOCK OUT
     """
-
     history = model.fit(
         train_dataset,
         epochs=num_epochs,
@@ -190,6 +189,11 @@ def TrainDiffusionModel():
             checkpoint_callback, # checkpoint callback located here
         ],
     )
+
+    #shutil.copy(parameters
+    
+     #   plt.savefig(f"{folder_path}/training_loss.png")
+
 
     # Save the key loss metrics 
     dict_key_list = ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]
