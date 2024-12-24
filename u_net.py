@@ -85,7 +85,7 @@ def UpBlock(width, block_depth):
         x = layers.UpSampling2D(size=2, interpolation="bilinear")(x) # upsampling here
         for _ in range(block_depth):
             a = skips.pop()
-            print("this is the concatenate (layer, skip):",  x, "and", a)
+            # print("this is the concatenate (layer, skip):",  x, "and", a)
             x = layers.Concatenate()([x, a]) # concatenates the upsampled tensor with
             x = ResidualBlock(width)(x)                # the last tensor stored in skips (a stack)
         return x

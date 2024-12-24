@@ -9,9 +9,9 @@ import os
 
 """ GENERAL PARAMETERS """
 folder_name = "ct_deep_river_diffusion"
-img_folder_name = "flow_small"            # must be in cwd
+img_folder_name = "flow_large"            # must be in cwd
                                     # where the training dataset is
-folder_path = "all_exp/exp48"
+folder_path = "all_exp/exp35"
 
 run_description = "to test max signal rate"
 
@@ -26,7 +26,7 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
-runtime = "training"
+runtime = "inpaint"
                                     # if it's "train," it's in training mode
                                     # if it's "inference," it's in inference mode
                                     # if It's "inpaint," it's in inpainting mode
@@ -44,12 +44,12 @@ pad_to_aspect_ratio = False
 crop_to_aspect_ratio = True     
 
 # optimization
-num_epochs = 1
+num_epochs = 100
 batch_size = 4
 dataset_repetitions = 1
 ema = 0.999
 learning_rate = 0.00025
-weight_decay = 0.0001
+weight_decay = 1e-4
 
 # KID eval
 kid_image_size = 75
@@ -57,8 +57,8 @@ plot_diffusion_steps = 20
 kid_diffusion_steps = 5
 
 # sampling
-min_signal_rate = 0.01 #0.02
-max_signal_rate = 0.98 #0.95
+min_signal_rate = 0.01
+max_signal_rate = 0.95
 
 # u-net architecture
 embedding_dims = 128
@@ -75,12 +75,11 @@ plot_on_epoch = 100000
 
 """ INFERENCE PARAMETERS """
 images_to_generate = 5
-generate_diffusion_steps = 30
+generate_diffusion_steps = 50
 
 """ INPAINTING PARAMETERS """
 inpainting_dir = "inpainting_data"
-inpaint_img = "inpaint_img"
-inpaint_mask = "inpaint_mask"
+MASK_AND_IMAGE_DIR = "mask_and_image"
 
 # Log all variables
 logging.info("----------")

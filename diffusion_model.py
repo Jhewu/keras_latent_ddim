@@ -12,6 +12,7 @@ from keras import layers
 from keras import ops
 import os
 import numpy as np
+import cv2 as cv
 
 # import from local scripts
 from u_net import get_network
@@ -300,6 +301,254 @@ class DiffusionModel(keras.Model):
         plt.savefig(f"{plot_dir}/checkpoint_inference{timestamp}.png")
         #plt.show()
         plt.close()
+
+    def simple_inpaint_1(self, img, mask, diffusion_steps=plot_diffusion_steps):
+        """
+        The Simplest form of inpainting
+        (no contextual awareness)
+        """
+
+        # generate the image
+        # the generated images are <float32> and 0-1
+        initial_noise = keras.random.normal(
+            shape=(1, image_size[0], image_size[1], 3)
+        )
+        generated_images = self.reverse_diffusion_single(initial_noise, diffusion_steps)
+        generated_images = self.denormalize(generated_images)
+
+        # create mask and inverted mask
+        # normalize them and cast it to a tensor of 32
+        norm_mask = mask / 255.0
+        norm_inverted_mask = (255 - mask)/255.0
+        norm_img = img/255.0
+
+        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
+        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
+        tf_img = tf.cast(norm_img, dtype=tf.float32)
+
+        # print(mask.dtype)
+        # print(inverted_mask.dtype)
+
+        # mask it to the image
+        generated_image = generated_images[0]
+        masked_noise = tf_inverted_mask * generated_image
+        masked_image = tf_mask * tf_img
+        inpainted_img = masked_noise + masked_image
+
+        return inpainted_img
+
+        # print(generated_images.dtype)
+        # print(np.min(generated_image))
+        # print(np.max(generated_image))
+
+    def simple_inpaint_2(self, img, mask, diffusion_steps): 
+        """
+        This one standarizes the image before inpainting
+        """
+        # create mask and inverted mask
+        # normalize them and cast it to a tensor of 32
+        norm_mask = mask / 255.0
+        norm_inverted_mask = (255 - mask)/255.0
+        norm_img = img/255.0
+
+        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
+        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
+        tf_img = tf.cast(norm_img, dtype=tf.float32)
+
+        # generate noise and combine it with inverted mask
+        initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
+        masked_noise = tf_inverted_mask * initial_noise
+
+        print(initial_noise.dtype)
+        print(tf.math.reduce_max(initial_noise))
+        print(tf.math.reduce_min(initial_noise))
+
+        # create image mask and standarize it
+        image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
+        # print(image_standardized.dtype)
+        # print(tf.math.reduce_max(image_standardized))
+        # print(tf.math.reduce_min(image_standardized))
+
+        masked_img = image_standardized * tf_mask
+
+        # combine the two images together
+        combined_img = masked_img + masked_noise
+
+        # generate the image
+        # the generated images are <float32> and 0-1
+        expand_img = tf.expand_dims(combined_img, 0)
+        generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
+        generated_images = self.denormalize(generated_images)
+
+        generated_image = generated_images[0]
+
+        plt.imshow(generated_image)
+        plt.show()
+
+        return generated_image
+    
+    def simple_inpaint_3(self, img, mask, diffusion_steps): 
+        """
+        This one does not standarize the image, thus ending up
+        with a white background
+        """
+        # create mask and inverted mask
+        # normalize them and cast it to a tensor of 32
+        norm_mask = mask / 255.0
+        norm_inverted_mask = (255 - mask)/255.0
+        norm_img = img/255.0
+
+        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
+        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
+        tf_img = tf.cast(norm_img, dtype=tf.float32)
+
+        # generate noise and combine it with inverted mask
+        initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
+        masked_noise = tf_inverted_mask * initial_noise
+
+        print(initial_noise.dtype)
+        print(tf.math.reduce_max(initial_noise))
+        print(tf.math.reduce_min(initial_noise))
+
+        # create image mask and standarize it
+        # image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
+        # print(image_standardized.dtype)
+        # print(tf.math.reduce_max(image_standardized))
+        # print(tf.math.reduce_min(image_standardized))
+
+        masked_img = tf_img * tf_mask
+
+        # combine the two images together
+        combined_img = masked_img + masked_noise
+
+        # generate the image
+        # the generated images are <float32> and 0-1
+        expand_img = tf.expand_dims(combined_img, 0)
+        generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
+        generated_images = self.denormalize(generated_images)
+
+        generated_image = generated_images[0]
+
+        plt.imshow(generated_image)
+        plt.show()
+
+        return generated_image
+
+
+    def inpaint(self, img, mask, diffusion_steps):
+        """
+        Simple inpaint (some contextual awareness)
+
+        MIGHT NEED TO CONSIDER THE RANGE OF THE KERAS 
+        RANDOM NORMAL
+
+        TRY IT WITHOUT NORMALIZING THE VALUE TO THE 
+        NORMAL RANGE
+
+
+        # self.normalization()
+
+        """
+        # create mask and inverted mask
+        # normalize them and cast it to a tensor of 32
+        norm_mask = mask / 255.0
+        norm_inverted_mask = (255 - mask)/255.0
+        norm_img = img/255.0
+
+        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
+        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
+        tf_img = tf.cast(norm_img, dtype=tf.float32)
+
+        # generate noise and combine it with inverted mask
+        initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
+        masked_noise = tf_inverted_mask * initial_noise
+
+        print(initial_noise.dtype)
+        print(tf.math.reduce_max(initial_noise))
+        print(tf.math.reduce_min(initial_noise))
+
+        # create image mask and standarize it
+        image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
+        # print(image_standardized.dtype)
+        # print(tf.math.reduce_max(image_standardized))
+        # print(tf.math.reduce_min(image_standardized))
+
+        masked_img = image_standardized * tf_mask
+
+        # combine the two images together
+        combined_img = masked_img + masked_noise
+
+        # generate the image
+        # the generated images are <float32> and 0-1
+        expand_img = tf.expand_dims(combined_img, 0)
+        generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
+        generated_images = self.denormalize(generated_images)
+
+        generated_image = generated_images[0]
+
+        # create the mask of the noise
+        masked_generated = generated_image * tf_inverted_mask
+
+        masked_img = tf_img * tf_mask
+
+        new_combined_img = masked_img + masked_generated
+
+        plt.imshow(new_combined_img)
+        plt.show()
+
+        return new_combined_img
+
+        # print(mask.dtype)
+        # print(inverted_mask.dtype)
+
+        # mask it to the image
+        # generated_image = generated_images[0]
+        # masked_noise = tf_inverted_mask * generated_image
+        # masked_image = tf_mask * tf_img
+        # inpainted_img = masked_noise + masked_image
+
+        # return inpainted_img
+
+        # print(generated_images.dtype)
+        # print(np.min(generated_image))
+        # print(np.max(generated_image))
+
+
+
+
+
+        # # creates the mask and the inverted mask
+        # mask = mask                 
+        # inverted_mask = 255 - mask 
+
+        # # normalize the masks and the image
+        # norm_mask = (mask / 255.0).astype("float32")
+        # norm_inverted_mask = (inverted_mask / 255.0).astype("float32")
+        # img = (img / 255.0).astype("float32")
+
+        # # multiply by noise, (dtype = float32)
+        # initial_noise = np.random.uniform(0, 1, size=(image_size[0], image_size[1], 3))
+        # initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
+        # print(initial_noise.dtype)
+
+        # masked_noise = norm_mask * initial_noise
+
+        # # multiply by image 
+        # masked_img = norm_inverted_mask * img
+
+        # # combine the image together
+        # combined_img = tf.cast(masked_img + masked_noise, dtype=tf.float32)
+
+        # # expand dimension before performing reverse diffusion
+        # combined_img = np.expand_dims(combined_img, axis=0)
+        
+        # generated_images = model.reverse_diffusion_single(combined_img, plot_diffusion_steps)
+        # generated_images = model.denormalize(generated_images)
+
+        # print(generated_images[0].dtype)
+
+        # plt.imshow(generated_images[0])
+        # plt.show()
 
     # def inpaint(self, img, mask, diffusion_steps):  # ADD REFINEMENT STEPS (aka "JUMPS")
     #     """

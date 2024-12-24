@@ -19,6 +19,8 @@ import cv2 as cv
 import logging
 from datetime import datetime
 import shutil
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 
 # import from local scripts
 from diffusion_model import DiffusionModel
@@ -64,33 +66,36 @@ def load_inpainting_data():
     """
     Returns the list of files in the image and mask directory for inpainting
     """
-    # Get both the directory of the images and the masks
-    cwd = os.getcwd()
-    inpaint_folder = os.path.join(cwd, inpainting_dir)
-    img_folder = os.path.join(inpaint_folder, inpaint_img)
-    mask_folder = os.path.joni(inpaint_folder, inpaint_mask)
+    # # Get both the directory of the images and the masks
+    # cwd = os.getcwd()
+    # inpaint_folder = os.path.join(cwd, inpainting_dir)
+    # img_folder = os.path.join(inpaint_folder, inpaint_img)
+    # mask_folder = os.path.joni(inpaint_folder, inpaint_mask)
 
-    # Get the lists of files in both directories
-    img_list = os.listdir(img_folder)
-    mask_list = os.listdir(mask_folder)
+    # # Get the lists of files in both directories
+    # img_list = os.listdir(img_folder)
+    # mask_list = os.listdir(mask_folder)
 
-    return sorted(img_list), sorted(mask_list)
+    # return sorted(img_list), sorted(mask_list)
 
 def load_inpainting_data_temp(): 
     cwd = os.getcwd()
-    mask_folder_name = "mask_and_images"
-    inpainting_folder = os.path.join(cwd, mask_folder_name)
+    mask_and_image_dir = os.path.join(cwd, MASK_AND_IMAGE_DIR)
+    mask_and_image_dir_list = os.listdir(mask_and_image_dir)
 
-    image_name = "image1.jpg"
-    mask_name = "image1_mask.jpg"
+    # identify directories for images and masks
+    if mask_and_image_dir_list[0] == "masks": 
+        mask_dir = os.path.join(mask_and_image_dir, os.listdir(mask_and_image_dir)[0])
+        image_dir = os.path.join(mask_and_image_dir, os.listdir(mask_and_image_dir)[1])
+    else: 
+        mask_dir = os.path.join(mask_and_image_dir, os.listdir(mask_and_image_dir)[1])
+        image_dir = os.path.join(mask_and_image_dir, os.listdir(mask_and_image_dir)[0])
 
-    image_folder = os.path.join(inpainting_folder, image_name)
-    mask_folder = os.path.join(inpainting_folder, mask_name)
-
-    image = cv.imread(image_folder)
-    mask = cv.imread(mask_folder)
-
-    return image, mask
+    # sort images and masks dir list
+    mask_dir_list = sorted(os.listdir(mask_dir))
+    image_dir_list = sorted(os.listdir(image_dir))
+        
+    return image_dir_list, mask_dir_list, image_dir, mask_dir
 
 def prepare_dataset(train_ds, val_ds): 
     """
@@ -141,6 +146,17 @@ def save_history(history, dict_key_list):
     plt.legend(loc="upper left")
     plt.savefig(f"{folder_path}/training_loss.png")
     plt.close()
+
+def BuildLoadModel(): 
+    train_dataset, val_dataset = load_dataset()
+    train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
+
+    # build and load the model
+    model = DiffusionModel(image_size, widths, block_depth)
+    model.normalizer.adapt(train_dataset) 
+    model.load_weights(checkpoint_path)
+
+    return model, train_dataset, val_dataset
 
 """ Main Runtime """
 def TrainDiffusionModel():
@@ -226,9 +242,10 @@ def InferenceDiffusionModel():
 
         index = index + 1
 
-def ContextualInpainting():
+def SimpleInpainting(): 
     """
-    This script is used for inpainting using a trained DDIM
+    This function is used for simple inpainting with a trained
+    DDIM model (no contextual awareness)
     """
     train_dataset, val_dataset = load_dataset()
     train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
@@ -238,24 +255,106 @@ def ContextualInpainting():
     model.normalizer.adapt(train_dataset) 
     model.load_weights(checkpoint_path)
 
-    # load the data
-    # THE IMAGES NAME MUST BE THE SAME, OTHERWISE, IT WILL BE CONFUSED WITH
-    # img_list, mask_list = load_inpainting_data()
-    image, mask = load_inpainting_data_temp()
+    # load image and mask lists
+    image_list, mask_list, image_dir, mask_dir = load_inpainting_data_temp()
+    image = image_list[0]
+    mask = mask_list[0]
 
-    # main runtime for each img, and each mask
+    image_path = os.path.join(image_dir, image)
+    mask_path = os.path.join(mask_dir, mask)
 
-    print("\n The program is currently running \n")
+    image = cv.imread(image_path, cv.IMREAD_COLOR)
+    mask = cv.imread(mask_path, cv.IMREAD_COLOR)
 
-    inpainted_img = model.inpaint(image, mask, plot_diffusion_steps)
+    # inpainted_img = model.simple_inpaint(image, mask, diffusion_steps=plot_diffusion_steps)
+    inpainted_img = model.inpaint(image, mask, diffusion_steps=30)
 
-    cv.imshow('Image', inpainted_img) 
-    cv.waitKey(0) 
-    cv.destroyAllWindows()
+    # tf.keras.preprocessing.image.save_img("standarized_50.jpg", inpainted_img) 
+
+    #numpy_inpaint = inpainted_img.numpy()
+
+    #plt.imshow(numpy_inpaint)
+    #plt.show()
+
+
+
+
+
+
+
+
+    #image = (model.inpaint(image, mask, diffusion_steps=plot_diffusion_steps)).astype("uint8")
+
+
+
+    # ensure the values are in the range [0, 1] after combining
+    #combined_img = np.clip(combined_img, 0.0, 1.0)
+
+    #uint8_img = (combined_img * 255).astype("uint8")
+
+
+    # apply mask to image
+    #masked_img = (img * mask).astype("uint8")
+    #masked_img = masked_img / 255.0
+
+    # initial_noise = keras.random.normal(
+    #     shape=(1, image_size[0], image_size[1], 3)
+    # )
+
+    # generated_images = model.reverse_diffusion_single(initial_noise, plot_diffusion_steps)
+    # generated_images = model.denormalize(generated_images)
+
+    # print(generated_images.shape)
+    # print(generated_images[0].shape)
+    # print(generated_images[0].dtype)
+
+    # image = generated_images[0]
+
+    # print("we have image here as well", image)
+
+    #cv.imwrite("test.jpg", masked_noise)
+    #cv.imwrite("image.jpg", combined_img)
+
+
+    #cv.imshow("before", image)
+    #cv.imshow("after", masked_noise)
+
+    #cv.waitKey(10000)
+    #cv.destroyAllWindows()
+
+
+
+
+# def ContextualInpainting():
+#     """
+#     This script is used for inpainting using a trained DDIM
+#     """
+#     train_dataset, val_dataset = load_dataset()
+#     train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
+
+#     # build and load the model
+#     model = DiffusionModel(image_size, widths, block_depth)
+#     model.normalizer.adapt(train_dataset) 
+#     model.load_weights(checkpoint_path)
+
+#     # load the data
+#     # THE IMAGES NAME MUST BE THE SAME, OTHERWISE, IT WILL BE CONFUSED WITH
+#     # img_list, mask_list = load_inpainting_data()
+#     image, mask = load_inpainting_data_temp()
+
+#     # main runtime for each img, and each mask
+
+#     print("\n The program is currently running \n")
+
+#     #inpainted_img = model.inpaint(image, mask, plot_diffusion_steps)
+
+#     #cv.imshow('Image', inpainted_img) 
+#     #cv.waitKey(0) 
+#     #cv.destroyAllWindows()
 
     
-    # Apply noise to the overall image e.g. modify the sampling process
-    # Combine using elementwise multiplication
+#     # Apply noise to the overall image e.g. modify the sampling process
+#     # Combine using elementwise multiplication
 
 
 if __name__ == "__main__":
@@ -269,40 +368,39 @@ if __name__ == "__main__":
 
     print(f"\nNum GPUs Available: {len(tf.config.list_physical_devices('GPU'))}\n")
 
-    warnings.filterwarnings('ignore')
+    #tf.get_logger().setLevel('DEBUG') 
+    #warnings.filterwarnings('always')
     os.environ["KERAS_BACKEND"] = "tensorflow"
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+
+    # for debugging
+    #tf.config.run_functions_eagerly(True)
+    #tf.data.experimental.enable_debug_mode
+
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     # disable if JIT Compilation error
     # os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0' 
-    # tf.config.optimizer.set_jit(False)
+    #tf.config.optimizer.set_jit(False)
 
     if runtime == "training":
-        try: 
-            # initialize logging
-            logging.basicConfig(level=logging.INFO, filename=f"{folder_path}/{folder_path}error.log")
-
-            TrainDiffusionModel()
-            print(f"\n Finish training for {num_epochs}\n")
-        except: 
-            logging.error("ERROR: Script stopped running, could be due to memory allocation. Check terminal.")
+        # initialize logging
+        logging.basicConfig(level=logging.INFO, filename=f"{folder_path}/{folder_path}error.log")
+        TrainDiffusionModel()
 
     elif runtime == "inference":
         if not os.path.exists(folder_path): 
             raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
-        try: 
-            InferenceDiffusionModel()
-            print(f"\n Finish generating {images_to_generate}\n")
-        except: 
-            logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
+        
+        InferenceDiffusionModel()
+        print(f"\n Finish generating {images_to_generate}\n")
 
-    # elif runtime == "inpaint":
-    #     if not os.path.exists(folder_path): 
-    #         raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
-    #     try: 
-    #         ContextualInpainting()
-    #         print(f"\n Finish inpainting all the files in the {inpainting_dir} directory\n")
-    #     except: 
-    #         logging.error("ERROR: Script stopped running. Very Weird. Check terminal.")
+    elif runtime == "inpaint":
+        if not os.path.exists(folder_path): 
+            raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
+ 
+        SimpleInpainting()
+
+   
 
 
 
