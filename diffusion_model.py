@@ -349,11 +349,12 @@ class DiffusionModel(keras.Model):
         # normalize them and cast it to a tensor of 32
         norm_mask = mask / 255.0
         norm_inverted_mask = (255 - mask)/255.0
-        norm_img = img/255.0
+        #norm_img = img/255.0
 
         tf_mask = tf.cast(norm_mask, dtype=tf.float32)
         tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
-        tf_img = tf.cast(norm_img, dtype=tf.float32)
+        #tf_img = tf.cast(norm_img, dtype=tf.float32)
+        tf_img = img
 
         # generate noise and combine it with inverted mask
         initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
@@ -364,12 +365,14 @@ class DiffusionModel(keras.Model):
         print(tf.math.reduce_min(initial_noise))
 
         # create image mask and standarize it
-        image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
+        image_standardized = self.normalizer(tf_img)
+        
+        #(tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
         # print(image_standardized.dtype)
         # print(tf.math.reduce_max(image_standardized))
         # print(tf.math.reduce_min(image_standardized))
 
-        masked_img = image_standardized * tf_mask
+        masked_img = image_standardized[0] * tf_mask
 
         # combine the two images together
         combined_img = masked_img + masked_noise
@@ -382,7 +385,7 @@ class DiffusionModel(keras.Model):
 
         generated_image = generated_images[0]
 
-        plt.imshow(generated_image)
+        plt.imshow(image_standardized)
         plt.show()
 
         return generated_image
@@ -449,54 +452,77 @@ class DiffusionModel(keras.Model):
         # self.normalization()
 
         """
+        """
+        This one normalizes with the layers.Normalization()
+        """
+
+#                self.normalizer = layers.Normalization()                    # for pixel normalization
+#    def diffusion_schedule(self, diffusion_times):
+
         # create mask and inverted mask
         # normalize them and cast it to a tensor of 32
         norm_mask = mask / 255.0
         norm_inverted_mask = (255 - mask)/255.0
         norm_img = img/255.0
 
-        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
-        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
-        tf_img = tf.cast(norm_img, dtype=tf.float32)
+        print(img.dtype)
+        print(np.min(img))
+        print(np.max(img))
 
-        # generate noise and combine it with inverted mask
-        initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
-        masked_noise = tf_inverted_mask * initial_noise
+        #plt.imshow(norm_img)
 
-        print(initial_noise.dtype)
-        print(tf.math.reduce_max(initial_noise))
-        print(tf.math.reduce_min(initial_noise))
+        norm_img = self.normalizer(img)
 
-        # create image mask and standarize it
-        image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
-        # print(image_standardized.dtype)
-        # print(tf.math.reduce_max(image_standardized))
-        # print(tf.math.reduce_min(image_standardized))
+        print(norm_img.dtype)
+        print(np.min(norm_img[0]))
+        print(np.max(norm_img[0]))
 
-        masked_img = image_standardized * tf_mask
-
-        # combine the two images together
-        combined_img = masked_img + masked_noise
-
-        # generate the image
-        # the generated images are <float32> and 0-1
-        expand_img = tf.expand_dims(combined_img, 0)
-        generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
-        generated_images = self.denormalize(generated_images)
-
-        generated_image = generated_images[0]
-
-        # create the mask of the noise
-        masked_generated = generated_image * tf_inverted_mask
-
-        masked_img = tf_img * tf_mask
-
-        new_combined_img = masked_img + masked_generated
-
-        plt.imshow(new_combined_img)
+        plt.imshow(norm_img[0])
         plt.show()
 
-        return new_combined_img
+
+        # tf_mask = tf.cast(norm_mask, dtype=tf.float32)
+        # tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
+        # tf_img = tf.cast(norm_img, dtype=tf.float32)
+
+        # # generate noise and combine it with inverted mask
+        # initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
+        # masked_noise = tf_inverted_mask * initial_noise
+
+        # print(initial_noise.dtype)
+        # print(tf.math.reduce_max(initial_noise))
+        # print(tf.math.reduce_min(initial_noise))
+
+        # # create image mask and standarize it
+        # image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
+        # # print(image_standardized.dtype)
+        # # print(tf.math.reduce_max(image_standardized))
+        # # print(tf.math.reduce_min(image_standardized))
+
+        # masked_img = image_standardized * tf_mask
+
+        # # combine the two images together
+        # combined_img = masked_img + masked_noise
+
+        # # generate the image
+        # # the generated images are <float32> and 0-1
+        # expand_img = tf.expand_dims(combined_img, 0)
+        # generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
+        # generated_images = self.denormalize(generated_images)
+
+        # generated_image = generated_images[0]
+
+        # # create the mask of the noise
+        # masked_generated = generated_image * tf_inverted_mask
+
+        # masked_img = tf_img * tf_mask
+
+        # new_combined_img = masked_img + masked_generated
+
+        # plt.imshow(new_combined_img)
+        # plt.show()
+
+        # return new_combined_img
 
         # print(mask.dtype)
         # print(inverted_mask.dtype)

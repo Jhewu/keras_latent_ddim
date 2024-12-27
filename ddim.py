@@ -266,8 +266,8 @@ def SimpleInpainting():
     image = cv.imread(image_path, cv.IMREAD_COLOR)
     mask = cv.imread(mask_path, cv.IMREAD_COLOR)
 
-    # inpainted_img = model.simple_inpaint(image, mask, diffusion_steps=plot_diffusion_steps)
-    inpainted_img = model.inpaint(image, mask, diffusion_steps=30)
+    inpainted_img = model.simple_inpaint_2(image, mask, diffusion_steps=plot_diffusion_steps)
+    #inpainted_img = model.inpaint(image, mask, diffusion_steps=30)
 
     # tf.keras.preprocessing.image.save_img("standarized_50.jpg", inpainted_img) 
 
