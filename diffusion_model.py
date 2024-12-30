@@ -13,15 +13,17 @@ from keras import ops
 import os
 import numpy as np
 import cv2 as cv
+import time
 
 # import from local scripts
 from u_net import get_network
 from kid_metric import KID
 from parameters import (max_signal_rate, min_signal_rate, 
                       image_size, batch_size, kid_diffusion_steps,
-                      ema, plot_diffusion_steps, folder_path, generate_diffusion_steps)
-
-import time
+                      ema, plot_diffusion_steps, folder_path, generate_diffusion_steps,
+                      VAE_IMAGE_SIZE, VAE_LATENT_DIM, VAE_CONV_WIDTHS, VAE_CONV_DEPTH,
+                      VAE_CONV_KERNEL)
+from vae_architecture import *
 
 @keras.saving.register_keras_serializable()
 class DiffusionModel(keras.Model): 
@@ -31,6 +33,9 @@ class DiffusionModel(keras.Model):
         self.normalizer = layers.Normalization()                    # for pixel normalization
         self.network = get_network(image_size, widths, block_depth) # obtaining the U-NET
         self.ema_network = keras.models.clone_model(self.network)   # EMA version of the network
+
+        # build the vae 
+        self.vae = VAE(VAE_IMAGE_SIZE, Build_Encoder(VAE_IMAGE_SIZE, VAE_CONV_WIDTHS, VAE_CONV_DEPTH, VAE_CONV_KERNEL, VAE_LATENT_DIM).get_layer("conv_z_log_var"), VAE_CONV_WIDTHS, VAE_CONV_DEPTH, VAE_CONV_KERNEL, VAE_LATENT_DIM)
 
     def compile(self, **kwargs):
         # compile method is overridden to create custom metrics

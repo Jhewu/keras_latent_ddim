@@ -156,41 +156,43 @@ def TrainDiffusionModel():
 
     # Create and compile the model
     model = DiffusionModel(image_size, widths, block_depth)
-    model.compile(
-        optimizer=keras.optimizers.AdamW(
-            learning_rate=learning_rate, weight_decay=weight_decay
-        ),
-        loss=keras.losses.mean_absolute_error,
-        # Loss function: Pixelwise mean absolute error (MAE).
-    )
 
-    # Calculate mean and variance of training dataset for normalization
-    model.normalizer.adapt(train_dataset)
-        # The adapt method is called on the normalizer using the training dataset.
-        # This calculates the mean and variance of the training dataset for normalization.
+    print(model.vae)
+    # model.compile(
+    #     optimizer=keras.optimizers.AdamW(
+    #         learning_rate=learning_rate, weight_decay=weight_decay
+    #     ),
+    #     loss=keras.losses.mean_absolute_error,
+    #     # Loss function: Pixelwise mean absolute error (MAE).
+    # )
 
-    if load_and_train: 
-        model.load_weights(checkpoint_path)
+    # # Calculate mean and variance of training dataset for normalization
+    # model.normalizer.adapt(train_dataset)
+    #     # The adapt method is called on the normalizer using the training dataset.
+    #     # This calculates the mean and variance of the training dataset for normalization.
 
-    history = model.fit(
-        train_dataset,
-        epochs=num_epochs,
-        validation_data=val_dataset,
-        callbacks=[
-            early_stop_callback,
-            custom_csv_logger,
-            plot_image_callback,
-            checkpoint_callback, 
-        ],
-    )
+    # if load_and_train: 
+    #     model.load_weights(checkpoint_path)
 
-    # Copy parameters file into the model folder
-    shutil.copy("parameters.py", f"{folder_path}/")
-    print(f"Parameters copied to {folder_path}/\n")
+    # history = model.fit(
+    #     train_dataset,
+    #     epochs=num_epochs,
+    #     validation_data=val_dataset,
+    #     callbacks=[
+    #         early_stop_callback,
+    #         custom_csv_logger,
+    #         plot_image_callback,
+    #         checkpoint_callback, 
+    #     ],
+    # )
 
-    # Save the key loss metrics 
-    dict_key_list = ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]
-    save_history(history, dict_key_list)
+    # # Copy parameters file into the model folder
+    # shutil.copy("parameters.py", f"{folder_path}/")
+    # print(f"Parameters copied to {folder_path}/\n")
+
+    # # Save the key loss metrics 
+    # dict_key_list = ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]
+    # save_history(history, dict_key_list)
 
 def InferenceDiffusionModel(): 
     """

@@ -11,9 +11,9 @@ import os
 folder_name = "ct_deep_river_diffusion"
 img_folder_name = "flow_large"            # must be in cwd
                                     # where the training dataset is
-folder_path = "all_exp/exp35"
+folder_path = "exp1"
 
-run_description = "to test max signal rate"
+run_description = "checking if latent diffusion model works"
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -26,7 +26,7 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
-runtime = "inpaint"
+runtime = "training"
                                     # if it's "training," it's in training mode
                                     # if it's "inference," it's in inference mode
                                     # if It's "inpaint," it's in inpainting mode
@@ -80,6 +80,13 @@ generate_diffusion_steps = 30
 """ INPAINTING PARAMETERS """
 inpainting_dir = "inpainting_data"
 MASK_AND_IMAGE_DIR = "mask_and_image"
+
+"""VAE PARAMETERS"""
+VAE_IMAGE_SIZE = (192, 592)
+VAE_LATENT_DIM = 512
+VAE_CONV_WIDTHS = [32, 64, 128, 256]
+VAE_CONV_DEPTH = [3, 3, 3, 3]
+VAE_CONV_KERNEL = 0
 
 # Log all variables
 logging.info("----------")
