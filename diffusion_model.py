@@ -19,15 +19,13 @@ from u_net import get_network
 from kid_metric import KID
 from parameters import (max_signal_rate, min_signal_rate, 
                       image_size, batch_size, kid_diffusion_steps,
-                      ema, plot_diffusion_steps, folder_path)
+                      ema, plot_diffusion_steps, folder_path, generate_diffusion_steps)
 
 import time
 
 @keras.saving.register_keras_serializable()
 class DiffusionModel(keras.Model): 
-            # inherits from Model
     def __init__(self, image_size, widths, block_depth):
-            # parameters we have seen when defining the U-Net
         super().__init__()
 
         self.normalizer = layers.Normalization()                    # for pixel normalization
@@ -72,6 +70,8 @@ class DiffusionModel(keras.Model):
     def denoise(self, noisy_images, noise_rates, signal_rates, training):
         # predicts noise components and calculate image components
         # it uses the network (either main or EMA) based on the training mode
+
+        print(noisy_images.shape)
         
         # the exponential moving average weights are used at evaluation
         if training:
@@ -302,204 +302,248 @@ class DiffusionModel(keras.Model):
         #plt.show()
         plt.close()
 
-    def simple_inpaint_1(self, img, mask, diffusion_steps=plot_diffusion_steps):
+    def simple_inpaint(self, img, mask, diffusion_steps=generate_diffusion_steps):
         """
         The Simplest form of inpainting
         (no contextual awareness)
-        """
 
-        # generate the image
-        # the generated images are <float32> and 0-1
+        Generates the image and then masks it onto 
+        the image to be inpainted. Process a single image
+        at a time. 
+        """
+        # Generate the image
+        # The generated images are <float32> and 0-1
         initial_noise = keras.random.normal(
             shape=(1, image_size[0], image_size[1], 3)
         )
         generated_images = self.reverse_diffusion_single(initial_noise, diffusion_steps)
         generated_images = self.denormalize(generated_images)
 
-        # create mask and inverted mask
-        # normalize them and cast it to a tensor of 32
-        norm_mask = mask / 255.0
-        norm_inverted_mask = (255 - mask)/255.0
-        norm_img = img/255.0
+        # Normalize masks and image
+        norm_mask = tf.cast(mask/255.0, dtype=tf.float32)  # Areas to preserve
+        norm_inverted_mask = tf.cast((255 - mask)/255.0, dtype=tf.float32)  # Areas to inpaint
+        norm_img = tf.cast(img/255.0, dtype=tf.float32)
 
-        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
-        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
-        tf_img = tf.cast(norm_img, dtype=tf.float32)
-
-        # print(mask.dtype)
-        # print(inverted_mask.dtype)
-
-        # mask it to the image
+        # Masks the generated image over the image
         generated_image = generated_images[0]
-        masked_noise = tf_inverted_mask * generated_image
-        masked_image = tf_mask * tf_img
+        masked_noise = norm_inverted_mask * generated_image
+        masked_image = norm_mask * norm_img
         inpainted_img = masked_noise + masked_image
 
-        return inpainted_img
-
-        # print(generated_images.dtype)
-        # print(np.min(generated_image))
-        # print(np.max(generated_image))
-
-    def simple_inpaint_2(self, img, mask, diffusion_steps): 
-        """
-        This one standarizes the image before inpainting
-        """
-        # create mask and inverted mask
-        # normalize them and cast it to a tensor of 32
-        norm_mask = mask / 255.0
-        norm_inverted_mask = (255 - mask)/255.0
-        #norm_img = img/255.0
-
-        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
-        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
-        #tf_img = tf.cast(norm_img, dtype=tf.float32)
-        tf_img = img
-
-        # generate noise and combine it with inverted mask
-        initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
-        masked_noise = tf_inverted_mask * initial_noise
-
-        print(initial_noise.dtype)
-        print(tf.math.reduce_max(initial_noise))
-        print(tf.math.reduce_min(initial_noise))
-
-        # create image mask and standarize it
-        image_standardized = self.normalizer(tf_img)
-        
-        #(tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
-        # print(image_standardized.dtype)
-        # print(tf.math.reduce_max(image_standardized))
-        # print(tf.math.reduce_min(image_standardized))
-
-        masked_img = image_standardized[0] * tf_mask
-
-        # combine the two images together
-        combined_img = masked_img + masked_noise
-
-        # generate the image
-        # the generated images are <float32> and 0-1
-        expand_img = tf.expand_dims(combined_img, 0)
-        generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
-        generated_images = self.denormalize(generated_images)
-
-        generated_image = generated_images[0]
-
-        plt.imshow(image_standardized)
-        plt.show()
-
-        return generated_image
+        return tf.expand_dims(inpainted_img, 0)
     
-    def simple_inpaint_3(self, img, mask, diffusion_steps): 
+    def inpaint(self, img, mask, diffusion_steps): 
         """
-        This one does not standarize the image, thus ending up
-        with a white background
+        Similar to simple_inpaint, but incorporates
+        a little bit more of context by feeding the 
+        reverse diffusion pipeline the combined mask, 
+        instead of normal noise, and then combines it 
+        back with the original image. This function 
+        process one image per call.
+
+        This function creates weird results, therefore
+        not recommended. 
         """
-        # create mask and inverted mask
-        # normalize them and cast it to a tensor of 32
-        norm_mask = mask / 255.0
-        norm_inverted_mask = (255 - mask)/255.0
-        norm_img = img/255.0
+        # Normalize masks and image
+        norm_mask = tf.cast(mask/255.0, dtype=tf.float32)  # Areas to preserve
+        norm_inverted_mask = tf.cast((255 - mask)/255.0, dtype=tf.float32)  # Areas to inpaint
+        norm_img = tf.cast(img/255.0, dtype=tf.float32)
 
-        tf_mask = tf.cast(norm_mask, dtype=tf.float32)
-        tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
-        tf_img = tf.cast(norm_img, dtype=tf.float32)
-
-        # generate noise and combine it with inverted mask
+        # Create the combined image by using the masks
         initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
-        masked_noise = tf_inverted_mask * initial_noise
+        masked_noise = norm_inverted_mask * initial_noise
 
-        print(initial_noise.dtype)
-        print(tf.math.reduce_max(initial_noise))
-        print(tf.math.reduce_min(initial_noise))
-
-        # create image mask and standarize it
-        # image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
-        # print(image_standardized.dtype)
-        # print(tf.math.reduce_max(image_standardized))
-        # print(tf.math.reduce_min(image_standardized))
-
-        masked_img = tf_img * tf_mask
-
-        # combine the two images together
+        masked_img = norm_img * norm_mask
         combined_img = masked_img + masked_noise
 
-        # generate the image
-        # the generated images are <float32> and 0-1
-        expand_img = tf.expand_dims(combined_img, 0)
-        generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
+        # Generate the images
+        expanded_img = tf.expand_dims(combined_img, 0)
+        generated_images = self.reverse_diffusion_single(expanded_img, diffusion_steps)
         generated_images = self.denormalize(generated_images)
 
         generated_image = generated_images[0]
+        generated_image_mask = generated_image * norm_inverted_mask
+        inpainted_img = masked_img + generated_image_mask
 
-        plt.imshow(generated_image)
-        plt.show()
+        return tf.expand_dims(inpainted_img, 0)
 
-        return generated_image
-
-
-    def inpaint(self, img, mask, diffusion_steps):
+    def contextual_inpaint(self, masked_image, mask, diffusion_steps):
         """
-        Simple inpaint (some contextual awareness)
-
-        MIGHT NEED TO CONSIDER THE RANGE OF THE KERAS 
-        RANDOM NORMAL
-
-        TRY IT WITHOUT NORMALIZING THE VALUE TO THE 
-        NORMAL RANGE
-
-
-        # self.normalization()
-
+        Contextual inpainting using reverse diffusion.
+        - masked_image: Input image with missing pixels (e.g., represented by zeros or other values).
+        - mask: Binary mask where 1s represent known pixels and 0s represent missing pixels.
         """
+        
+        step_size = 1.0 / diffusion_steps
+        pred_images = []
+
+        for i in range(masked_image.shape[0]):  # Iterate over each image
+            next_noisy_image = masked_image[i]
+
+            for step in range(diffusion_steps):
+                noisy_image = next_noisy_image
+
+                # Separate the current noisy image to its components
+                diffusion_time = ops.ones((1, 1, 1, 1)) - step * step_size
+                noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)
+                
+                pred_noise, pred_image = self.denoise(
+                    noisy_image[None, ...], noise_rate, signal_rate, training=False
+                )  # Network used in eval mode
+
+                # Blend predicted image with known pixels from the original image
+                pred_image = mask[i] * masked_image[i] + (1 - mask[i]) * pred_image[0]
+
+                # Remix the predicted components using the next signal and noise rates
+                next_diffusion_time = diffusion_time - step_size
+                next_noise_rate, next_signal_rate = self.diffusion_schedule(next_diffusion_time)
+                next_noisy_image = (
+                    next_signal_rate * pred_image + next_noise_rate * pred_noise
+                )[0]
+                # This new noisy image will be used in the next step
+            
+            pred_images.append(pred_image)
+            pred_image = self.denormalize(pred_image)
+        
+        return np.stack(pred_images)
+
+            
+    def repaint(self, img, mask, diffusion_steps):
         """
-        This one normalizes with the layers.Normalization()
+        RePaint-style inpainting with context preservation and noise resampling
+        Args:
+            img: Input image to be inpainted
+            mask: Binary mask where 1 indicates regions to keep (known regions)
+            diffusion_steps: Number of diffusion steps
         """
+        
+        # Normalize masks and image
+        context_mask = tf.cast(mask/255.0, dtype=tf.float32)  # Areas to preserve
+        inpaint_mask = tf.cast((255 - mask)/255.0, dtype=tf.float32)  # Areas to inpaint
+        norm_img = tf.cast(self.normalizer(img/255.0)[0], dtype=tf.float32)
 
-#                self.normalizer = layers.Normalization()                    # for pixel normalization
-#    def diffusion_schedule(self, diffusion_times):
+        # Initialize noise
+        initial_noise = keras.random.normal(
+            shape=(image_size[0], image_size[1], 3)
+        )
 
-        # create mask and inverted mask
-        # normalize them and cast it to a tensor of 32
-        norm_mask = mask / 255.0
-        norm_inverted_mask = (255 - mask)/255.0
-        norm_img = img/255.0
+        # Calculate step size for diffusion
+        step_size = 1.0 / diffusion_steps
+        current_sample = initial_noise
 
-        print(img.dtype)
-        print(np.min(img))
-        print(np.max(img))
+        for step in range(diffusion_steps):
+            """Denoising Process"""
+            # Calculate current timestep and rates
+            t = ops.ones((1, 1, 1, 1)) - step * step_size
+            noise_rate, signal_rate = self.diffusion_schedule(t)
 
-        #plt.imshow(norm_img)
+            # Create the combined image with context preservation
+            # For known regions (context_mask), use the original image
+            # For unknown regions (inpaint_mask), use the current noisy sample
+            combined_img = (
+                context_mask * norm_img +  # Keep original content in known regions
+                inpaint_mask * current_sample  # Use current sample in regions to inpaint
+            )
 
-        norm_img = self.normalizer(img)
+            # Predict noise and denoised image
+            pred_noise, pred_image = self.denoise(
+                combined_img[None, ...], 
+                noise_rate, 
+                signal_rate, 
+                training=False
+            )
 
-        print(norm_img.dtype)
-        print(np.min(norm_img[0]))
-        print(np.max(norm_img[0]))
+            """Forward Process"""
+            # Calculate next timestep rates
+            next_t = t - step_size
+            next_noise_rate, next_signal_rate = self.diffusion_schedule(next_t)
 
-        plt.imshow(norm_img[0])
-        plt.show()
+            # Mix predicted components for next step
+            next_sample = (
+                next_signal_rate * pred_image + 
+                next_noise_rate * pred_noise
+            )[0]
 
+            # Apply noise resampling in masked regions (RePaint key feature)
+            # Only resample noise in early and middle steps, not near the end
+            if step < int(diffusion_steps * 0.2):  # Don't resample in final 20% of steps
+                new_noise = keras.random.normal(next_sample.shape)
+                next_sample = (
+                    inpaint_mask * new_noise +  # Resample noise in regions to inpaint
+                    context_mask * next_sample  # Keep current sample in known regions
+                )
 
-        # tf_mask = tf.cast(norm_mask, dtype=tf.float32)
-        # tf_inverted_mask = tf.cast(norm_inverted_mask, dtype=tf.float32)
-        # tf_img = tf.cast(norm_img, dtype=tf.float32)
+            current_sample = next_sample
+
+            # Optional: periodically preserve known regions to prevent drift
+            if step % 10 == 0:  # Every 10 steps
+                current_sample = (
+                    context_mask * norm_img +
+                    inpaint_mask * current_sample
+                )
+
+        current_sample = self.denormalize(current_sample)
+
+        # Return final result
+        return current_sample
+    
+    def simple_inpaint_6(self, img, mask, diffusion_steps): 
+
+        # create mask and inverted mask and normalize them and cast it to a tensor of 32
+        norm_mask = tf.cast(mask/255.0, dtype=tf.float32)
+        norm_inverted_mask = tf.cast((255 - mask)/255.0, dtype=tf.float32) 
+        norm_img = tf.cast(self.normalizer(img)[0], dtype=tf.float32)
+
+        # create the noise
+        # noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
+
+        initial_noise = keras.random.normal(
+            shape=(image_size[0], image_size[1], 3)
+        )
+
+        # calculate the step size
+        step_size = 1.0 / diffusion_steps
+
+        next_noisy_image = initial_noise
+
+        for step in range(diffusion_steps):
+            """Denoising Process"""
+
+            # calculate the noise_rate and signal_rate for diffusion
+            diffusion_time = ops.ones((1, 1, 1, 1)) - step * step_size
+            noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)   
+
+            # create the combined image
+            unknown = norm_inverted_mask * next_noisy_image
+            known = norm_mask * next_noisy_image
+            combined_img = unknown + known
+
+            noisy_image = combined_img
+
+            pred_noise, pred_image = self.denoise(
+                noisy_image[None, ...], noise_rate, signal_rate, training=False
+            ) # Network used in eval mode
+
+            """Forward Process"""
+            # Remix the predicted components using the next signal and noise rates
+            next_diffusion_time = diffusion_time - step_size
+            next_noise_rate, next_signal_rate = self.diffusion_schedule(next_diffusion_time)
+            next_noisy_image = (
+                next_signal_rate * pred_image + next_noise_rate * pred_noise
+            )[0]
+
+        #plt.imshow(next_noisy_image)
+        #plt.show()
 
         # # generate noise and combine it with inverted mask
         # initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
-        # masked_noise = tf_inverted_mask * initial_noise
+        # masked_noise = norm_inverted_mask * initial_noise
 
         # print(initial_noise.dtype)
         # print(tf.math.reduce_max(initial_noise))
         # print(tf.math.reduce_min(initial_noise))
 
-        # # create image mask and standarize it
-        # image_standardized = (tf_img - tf.math.reduce_mean(tf_img)) / tf.math.reduce_std(tf_img)
-        # # print(image_standardized.dtype)
-        # # print(tf.math.reduce_max(image_standardized))
-        # # print(tf.math.reduce_min(image_standardized))
-
-        # masked_img = image_standardized * tf_mask
+        # masked_img = norm_img * norm_mask
 
         # # combine the two images together
         # combined_img = masked_img + masked_noise
@@ -507,196 +551,73 @@ class DiffusionModel(keras.Model):
         # # generate the image
         # # the generated images are <float32> and 0-1
         # expand_img = tf.expand_dims(combined_img, 0)
-        # generated_images = self.reverse_diffusion_single(expand_img, diffusion_steps)
-        # generated_images = self.denormalize(generated_images)
-
-        # generated_image = generated_images[0]
-
-        # # create the mask of the noise
-        # masked_generated = generated_image * tf_inverted_mask
-
-        # masked_img = tf_img * tf_mask
-
-        # new_combined_img = masked_img + masked_generated
-
-        # plt.imshow(new_combined_img)
-        # plt.show()
-
-        # return new_combined_img
-
-        # print(mask.dtype)
-        # print(inverted_mask.dtype)
-
-        # mask it to the image
-        # generated_image = generated_images[0]
-        # masked_noise = tf_inverted_mask * generated_image
-        # masked_image = tf_mask * tf_img
-        # inpainted_img = masked_noise + masked_image
-
-        # return inpainted_img
-
-        # print(generated_images.dtype)
-        # print(np.min(generated_image))
-        # print(np.max(generated_image))
 
 
 
 
 
-        # # creates the mask and the inverted mask
-        # mask = mask                 
-        # inverted_mask = 255 - mask 
 
-        # # normalize the masks and the image
-        # norm_mask = (mask / 255.0).astype("float32")
-        # norm_inverted_mask = (inverted_mask / 255.0).astype("float32")
-        # img = (img / 255.0).astype("float32")
 
-        # # multiply by noise, (dtype = float32)
-        # initial_noise = np.random.uniform(0, 1, size=(image_size[0], image_size[1], 3))
-        # initial_noise = keras.random.normal(shape=(image_size[0], image_size[1], 3))
-        # print(initial_noise.dtype)
+        # # normalize images to have standard deviation of 1, like the noises
+        # images = self.normalizer(images, training=True) # from init()
+        # noises = keras.random.normal(shape=(batch_size, image_size[0], image_size[1], 3))
+        #     # generate random noises
 
-        # masked_noise = norm_mask * initial_noise
-
-        # # multiply by image 
-        # masked_img = norm_inverted_mask * img
-
-        # # combine the image together
-        # combined_img = tf.cast(masked_img + masked_noise, dtype=tf.float32)
-
-        # # expand dimension before performing reverse diffusion
-        # combined_img = np.expand_dims(combined_img, axis=0)
+        # # sample uniform random diffusion times
+        # diffusion_times = keras.random.uniform(
+        #     shape=(batch_size, 1, 1, 1), minval=0.0, maxval=1.0
+        # )
         
-        # generated_images = model.reverse_diffusion_single(combined_img, plot_diffusion_steps)
-        # generated_images = model.denormalize(generated_images)
-
-        # print(generated_images[0].dtype)
-
-        # plt.imshow(generated_images[0])
-        # plt.show()
-
-    # def inpaint(self, img, mask, diffusion_steps):  # ADD REFINEMENT STEPS (aka "JUMPS")
-    #     """
-    #     Custom implementation of RePaint by using
-    #     the diffusion model's reverse_diffusion with DDIM sampling
-    #     """
+        # # calculate noise rates and signal rates based on diffusion times.
+        # noise_rates, signal_rates = self.diffusion_schedule(diffusion_times)
         
-    #     # Normalize the original image and the mask to have a standard deviation of 1, like the noise
-    #     image = self.normalizer(img, training=False)
-    #     mask = self.normalizer(mask, training=False)
+        # # mix the images with noises accordingly
+        # noisy_images = signal_rates * images + noise_rates * noises
 
-    #     # Step 1: Initialize the random noise
-    #     initial_noise = tf.random.normal(shape=(1, image.shape[0], image.shape[1], 3))
+        # with tf.GradientTape() as tape:
+        #     # train the network to separate noisy images to their components
+        #         # denoise images into predicted noise and image components
+        #     pred_noises, pred_images = self.denoise( # denoise is used for training
+        #         noisy_images, noise_rates, signal_rates, training=True
+        #     )
 
-    #     print(initial_noise)
-
-    #     # Step 2: Initialize noisy image (start with random noise)
-    #     noisy_image = initial_noise
-
-    #     # Step 3: Loop through diffusion steps
-    #     step_size = 1.0 / diffusion_steps
-
-    #     print("\n The program is currently running \n")
-
-    #     for step in range(diffusion_steps):
-    #         """
-    #         Refinement steps ("jumps") can be added later for further corrections
-    #         """
-    #         # Step 4: Compute current diffusion time (1 - step * step_size)
-    #         diffusion_time = tf.ones((1, 1, 1, 1)) - step * step_size
-
-    #         print(diffusion_time)
-
-    #         # Step 5: Compute noise and signal rates based on the diffusion schedule
-    #         noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)
-
-    #         print(noise_rate)
-
-    #         # Step 6: Predict noise and reconstructed image using the denoising model
-    #         pred_noise, pred_image = self.denoise(
-    #             noisy_image[None, ...], noise_rate, signal_rate, training=False
-    #         )  # Network in eval mode
-
-    #         print("\n This still works\n")
-
-    #         # **Step 5: Compute Known Pixels**
-    #         # The known part of the image should not be updated since we already know it
-    #         # Get the known region from the original image
-    #         known_image = signal_rate * image + noise_rate * pred_noise
-
-    #         # **Step 6: Compute Unknown Pixels Using DDIM**
-    #         # This is deterministic in DDIM, so no need for sampling
-    #         # Use the mask to handle the unknown part
-    #         unknown_image = signal_rate * pred_image + noise_rate * pred_noise
-
-    #         # **Step 8: Combine known and unknown parts using the mask**
-    #         next_image = mask * known_image + (1 - mask) * unknown_image
-
-    #         # Update the noisy image with the combined known and unknown parts
-    #         noisy_image = next_image  # Use next_image here for the next iteration!
-
-    #     # Final Step: Return the predicted inpainted image (final denoised image)
-    #     return pred_image[0]
-
-
-    # def inpaint(self, img, mask, diffusion_steps): # ADD REFINEMENT STEPS (aka "JUMPS")
-    #     """
-    #     Custom inplementation of RePaint by using
-    #     the diffusion model's reverse_diffusion
-    #     """
+        #     # compute noise loss (used for training) and image loss (used as a metric).
+        #     noise_loss = self.loss(noises, pred_noises)  # used for training
+        #     image_loss = self.loss(images, pred_images)  # only used as metric
+        #     """
+        #     What is tf.GradientTape()? 
+        #         Allows you to compute gradients during training for various neural network architectures
+        #         These gradients are crucial for backpropagation
+                
+        #         Usage:
+        #             - You create a tf.GradientTape context.
+        #             - Inside this context, you perform operations (e.g., forward pass, loss computation) 
+        #                 involving TensorFlow variables (usually tf.Variables).
+        #             - The tape records these operations.
+        #             - When you exit the context, you can compute gradients with respect to the recorded 
+        #                 operations using the tape.
+        #     """
         
-    #     # normalize the original image and the mask
-    #     # to have standard deviation of 1, like the noise
-    #     image = self.normalizer(img, training=False)
-    #     mask = self.normalizer(mask, training=False)
+        # # compute gradients and update network weights using the optimizer.
+        # gradients = tape.gradient(noise_loss, self.network.trainable_weights)
+        # self.optimizer.apply_gradients(zip(gradients, self.network.trainable_weights))
+        #     # The zip(...) function pairs up corresponding elements from gradients and trainable_weights
+        #         # each pair consists of a gradient and the corresponding trainable weight. 
 
+        # self.noise_loss_tracker.update_state(noise_loss)
+        # self.image_loss_tracker.update_state(image_loss)
 
+        # # track the exponential moving averages of weights
+        # for weight, ema_weight in zip(self.network.weights, self.ema_network.weights):
+        #     ema_weight.assign(ema * ema_weight + (1 - ema) * weight)
+        #         # update exponential moving averages of network weights.
 
-    #     # Step 1: Initialize the random noise
-    #     initial_noise = keras.random.normal(
-    #         shape=(image_size[0], image_size[1], 3)
-    #     )
+        # # KID is not measured during the training phase for computational efficiency
+        # return {m.name: m.result() for m in self.metrics[:-1]}
+        #     # return metrics (excluding KID) for tracking.
 
-    #     # Step 2: Loop through diffusion steps
-    #     step_size = 1.0 / diffusion_steps
-    #     for step in range(diffusion_steps):
-    #         """
-    #         Loop through refinements steps here ("jumps")
-    #         Will work on this later, after the regular inpainting works
-    #         """
-    #         noisy_image = next_noisy_image
+        return
 
-    #         """MIGHT NEED TO ADD THE IF CONDITION FROM THE BEGINNING"""
-
-
-    #         # Step 5: Compute Known part
-    #         # Calculate what the known (non-masked) pixels of the image should look like at the next time step
-    #         diffusion_time = ops.ones((1, 1, 1, 1)) - step * step_size
-    #         noise_rate, signal_rate = self.diffusion_schedule(diffusion_time)  
-
-
-    #         # Step 6: Sample z from unknown part
-    #         # This step involves sampling new noise zz specifically for the unknown (masked) regions of the image.
-
-
-
-    #         pred_noise, pred_image = self.denoise(
-    #             noisy_image[None, ...], noise_rate, signal_rate, training=False
-    #         ) # Network used in eval mode
-
-
-
-
-
-    #         # Remix the predicted components using the next signal and noise rates
-    #         next_diffusion_time = diffusion_time - step_size
-    #         next_noise_rate, next_signal_rate = self.diffusion_schedule(next_diffusion_time)
-    #         next_noisy_image = (
-    #             next_signal_rate * pred_image + next_noise_rate * pred_noise
-    #         )[0]
-    #         # This new noisy image will be used in the next step
-    #     return pred_image[0]
 
 
     """

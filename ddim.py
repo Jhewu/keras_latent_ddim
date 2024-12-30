@@ -10,7 +10,6 @@ https://keras.io/getting_started/
 
 """ ALL IMPORTS """
 # import necessary libraries
-import warnings
 import os
 import matplotlib.pyplot as plt 
 import tensorflow as tf
@@ -19,8 +18,6 @@ import cv2 as cv
 import logging
 from datetime import datetime
 import shutil
-from concurrent.futures import ThreadPoolExecutor
-import numpy as np
 
 # import from local scripts
 from diffusion_model import DiffusionModel
@@ -147,21 +144,10 @@ def save_history(history, dict_key_list):
     plt.savefig(f"{folder_path}/training_loss.png")
     plt.close()
 
-def BuildLoadModel(): 
-    train_dataset, val_dataset = load_dataset()
-    train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
-
-    # build and load the model
-    model = DiffusionModel(image_size, widths, block_depth)
-    model.normalizer.adapt(train_dataset) 
-    model.load_weights(checkpoint_path)
-
-    return model, train_dataset, val_dataset
-
 """ Main Runtime """
 def TrainDiffusionModel():
     """
-    THIS SCRIPT IS USED TO TRAIN THE DIFFUSION MODEL
+    This script is used to train the 
     """
 
     # Load and prepare the dataset
@@ -186,14 +172,6 @@ def TrainDiffusionModel():
     if load_and_train: 
         model.load_weights(checkpoint_path)
 
-    """
-    Training: 
-    - train for at least 50 epochs for good results
-    - run training and plot generated images 
-
-    WHEN YOU WANT TO PERFORM INFERENCE BASED ON PREVIOUS
-    WEIGHTS, COMMENT THIS BLOCK OUT
-    """
     history = model.fit(
         train_dataset,
         epochs=num_epochs,
@@ -202,11 +180,11 @@ def TrainDiffusionModel():
             early_stop_callback,
             custom_csv_logger,
             plot_image_callback,
-            checkpoint_callback, # checkpoint callback located here
+            checkpoint_callback, 
         ],
     )
 
-    # copy parameters file into the experiment folder
+    # Copy parameters file into the model folder
     shutil.copy("parameters.py", f"{folder_path}/")
     print(f"Parameters copied to {folder_path}/\n")
 
@@ -216,146 +194,76 @@ def TrainDiffusionModel():
 
 def InferenceDiffusionModel(): 
     """
-    This script is used for inference, reverse diffusion
+    This script is used for inference, e.g. reverse diffusion
     """
     train_dataset, val_dataset = load_dataset()
     train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
 
-    # build and load the model
+    # Build and load the model
     model = DiffusionModel(image_size, widths, block_depth)
     model.normalizer.adapt(train_dataset) 
     model.load_weights(checkpoint_path)
 
-    # generate the images
+    # Generate the images
     generated_images = model.generate(images_to_generate, generate_diffusion_steps, True)
 
-    # create a new directory
+    # Create directory in model's folder and save the images
     generated_dir = os.path.join(folder_path, "generated_images")
     if not os.path.exists(generated_dir): 
         os.makedirs(generated_dir)
 
     index = 1
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     for image in generated_images: 
-        #tf.keras.preprocessing.image.save_img(f"{generated_dir}/generated_img_{index}_at{timestamp}.jpg",image)
         tf.keras.preprocessing.image.save_img(f"{generated_dir}/{timestamp}_generated_img_{index}.jpg", image) 
-
         index = index + 1
 
-def SimpleInpainting(): 
+def ContextualInpainting(): 
     """
-    This function is used for simple inpainting with a trained
-    DDIM model (no contextual awareness)
+    This function is used for Contextual inpainting with a pre-trained
+    DDIM model. The specific method implemented is from the paper: 
+    "RePaint: Inpainting using Denoising Diffusion Probabilistic Models"
+    https://arxiv.org/abs/2201.09865 
+
+    Requires: 
+    1. Pre-trained model in parameters.py
+    2. Requires directories mask_and_image/images and mask_and_image/masks. 
+       Each mask and image pair, must contain the same name
     """
+
+    # Load and prepare the datasets
     train_dataset, val_dataset = load_dataset()
     train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
 
-    # build and load the model
+    # Build and load the model
     model = DiffusionModel(image_size, widths, block_depth)
     model.normalizer.adapt(train_dataset) 
     model.load_weights(checkpoint_path)
 
-    # load image and mask lists
+    # Load masks and images
+    """MODIFY TO HANDLE LONG LISTS OF IMAGES AND MASKS"""
     image_list, mask_list, image_dir, mask_dir = load_inpainting_data_temp()
-    image = image_list[0]
-    mask = mask_list[0]
+    image_name = image_list[0]
+    mask_name = mask_list[0]
 
-    image_path = os.path.join(image_dir, image)
-    mask_path = os.path.join(mask_dir, mask)
+    image_path = os.path.join(image_dir, image_name)
+    mask_path = os.path.join(mask_dir, mask_name)
 
     image = cv.imread(image_path, cv.IMREAD_COLOR)
     mask = cv.imread(mask_path, cv.IMREAD_COLOR)
 
-    inpainted_img = model.simple_inpaint_2(image, mask, diffusion_steps=plot_diffusion_steps)
-    #inpainted_img = model.inpaint(image, mask, diffusion_steps=30)
+    # Run RePaint algorithm
+    inpainted_images = model.inpaint(image, mask, diffusion_steps=50)
+    #inpainted_images = model.repaint(image, mask, diffusion_steps=50)
 
-    # tf.keras.preprocessing.image.save_img("standarized_50.jpg", inpainted_img) 
+    # Save the inpainted image in model directory
+    inpainted_dir = os.path.join(folder_path, "inpainted_images")
+    if not os.path.exists(inpainted_dir): 
+        os.makedirs(inpainted_dir)
 
-    #numpy_inpaint = inpainted_img.numpy()
-
-    #plt.imshow(numpy_inpaint)
-    #plt.show()
-
-
-
-
-
-
-
-
-    #image = (model.inpaint(image, mask, diffusion_steps=plot_diffusion_steps)).astype("uint8")
-
-
-
-    # ensure the values are in the range [0, 1] after combining
-    #combined_img = np.clip(combined_img, 0.0, 1.0)
-
-    #uint8_img = (combined_img * 255).astype("uint8")
-
-
-    # apply mask to image
-    #masked_img = (img * mask).astype("uint8")
-    #masked_img = masked_img / 255.0
-
-    # initial_noise = keras.random.normal(
-    #     shape=(1, image_size[0], image_size[1], 3)
-    # )
-
-    # generated_images = model.reverse_diffusion_single(initial_noise, plot_diffusion_steps)
-    # generated_images = model.denormalize(generated_images)
-
-    # print(generated_images.shape)
-    # print(generated_images[0].shape)
-    # print(generated_images[0].dtype)
-
-    # image = generated_images[0]
-
-    # print("we have image here as well", image)
-
-    #cv.imwrite("test.jpg", masked_noise)
-    #cv.imwrite("image.jpg", combined_img)
-
-
-    #cv.imshow("before", image)
-    #cv.imshow("after", masked_noise)
-
-    #cv.waitKey(10000)
-    #cv.destroyAllWindows()
-
-
-
-
-# def ContextualInpainting():
-#     """
-#     This script is used for inpainting using a trained DDIM
-#     """
-#     train_dataset, val_dataset = load_dataset()
-#     train_dataset, val_dataset = prepare_dataset(train_dataset, val_dataset)
-
-#     # build and load the model
-#     model = DiffusionModel(image_size, widths, block_depth)
-#     model.normalizer.adapt(train_dataset) 
-#     model.load_weights(checkpoint_path)
-
-#     # load the data
-#     # THE IMAGES NAME MUST BE THE SAME, OTHERWISE, IT WILL BE CONFUSED WITH
-#     # img_list, mask_list = load_inpainting_data()
-#     image, mask = load_inpainting_data_temp()
-
-#     # main runtime for each img, and each mask
-
-#     print("\n The program is currently running \n")
-
-#     #inpainted_img = model.inpaint(image, mask, plot_diffusion_steps)
-
-#     #cv.imshow('Image', inpainted_img) 
-#     #cv.waitKey(0) 
-#     #cv.destroyAllWindows()
-
-    
-#     # Apply noise to the overall image e.g. modify the sampling process
-#     # Combine using elementwise multiplication
-
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    for image in inpainted_images: 
+        tf.keras.preprocessing.image.save_img(f"{inpainted_dir}/{timestamp}_inpainted_img_{image_name}.jpg", image) 
 
 if __name__ == "__main__":
     """ 
@@ -366,39 +274,26 @@ if __name__ == "__main__":
     print(keras.__version__)
     print(tf.__version__)
 
+    # Show if GPU is being used
     print(f"\nNum GPUs Available: {len(tf.config.list_physical_devices('GPU'))}\n")
 
-    #tf.get_logger().setLevel('DEBUG') 
-    #warnings.filterwarnings('always')
     os.environ["KERAS_BACKEND"] = "tensorflow"
-
-
-    # for debugging
-    #tf.config.run_functions_eagerly(True)
-    #tf.data.experimental.enable_debug_mode
-
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
-    # disable if JIT Compilation error
-    # os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0' 
-    #tf.config.optimizer.set_jit(False)
 
     if runtime == "training":
-        # initialize logging
         logging.basicConfig(level=logging.INFO, filename=f"{folder_path}/{folder_path}error.log")
         TrainDiffusionModel()
-
     elif runtime == "inference":
         if not os.path.exists(folder_path): 
             raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
-        
         InferenceDiffusionModel()
-        print(f"\n Finish generating {images_to_generate}\n")
-
+        print(f"\n Finish generating {images_to_generate} images\n")
     elif runtime == "inpaint":
         if not os.path.exists(folder_path): 
             raise Exception("\nWARNING: Cannot find the directory where the model and all its files are stored\n")
- 
-        SimpleInpainting()
+        ContextualInpainting()
+        """MODIFY THIS LATER ON"""
+        print(f"\nFinish inpainting images\n")
 
    
 

@@ -27,7 +27,7 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
 runtime = "inpaint"
-                                    # if it's "train," it's in training mode
+                                    # if it's "training," it's in training mode
                                     # if it's "inference," it's in inference mode
                                     # if It's "inpaint," it's in inpainting mode
 load_and_train = False
@@ -74,8 +74,8 @@ early_stop_start_epoch = 50
 plot_on_epoch = 100000
 
 """ INFERENCE PARAMETERS """
-images_to_generate = 5
-generate_diffusion_steps = 50
+images_to_generate = 1
+generate_diffusion_steps = 30
 
 """ INPAINTING PARAMETERS """
 inpainting_dir = "inpainting_data"
