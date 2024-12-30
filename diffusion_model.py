@@ -70,8 +70,6 @@ class DiffusionModel(keras.Model):
     def denoise(self, noisy_images, noise_rates, signal_rates, training):
         # predicts noise components and calculate image components
         # it uses the network (either main or EMA) based on the training mode
-
-        print(noisy_images.shape)
         
         # the exponential moving average weights are used at evaluation
         if training:
@@ -367,18 +365,28 @@ class DiffusionModel(keras.Model):
 
         return tf.expand_dims(inpainted_img, 0)
 
-    def contextual_inpaint(self, masked_image, mask, diffusion_steps):
+    def contextual_inpaint(self, img, mask, diffusion_steps):
         """
         Contextual inpainting using reverse diffusion.
-        - masked_image: Input image with missing pixels (e.g., represented by zeros or other values).
-        - mask: Binary mask where 1s represent known pixels and 0s represent missing pixels.
+        This is an improvement over self.inpaint(), it includes more 
+        contextual information to the denoising pipeline, however, it's still 
+        does not create great contextually meaningful images. 
         """
+
+        # Normalize masks and image and create the masked image
+        norm_mask = tf.cast(mask/255.0, dtype=tf.float32)  # Areas to preserve
+        norm_img = tf.cast(self.normalizer(img/255.0)[0], dtype=tf.float32)
+        masked_img = norm_img * norm_mask
+
+        # expand the dimension to work on the pipeline
+        norm_mask = tf.expand_dims(norm_mask, 0)
+        masked_img = tf.expand_dims(masked_img, 0)
         
         step_size = 1.0 / diffusion_steps
         pred_images = []
 
-        for i in range(masked_image.shape[0]):  # Iterate over each image
-            next_noisy_image = masked_image[i]
+        for i in range(masked_img.shape[0]):  # Iterate over each image
+            next_noisy_image = masked_img[i]
 
             for step in range(diffusion_steps):
                 noisy_image = next_noisy_image
@@ -392,7 +400,7 @@ class DiffusionModel(keras.Model):
                 )  # Network used in eval mode
 
                 # Blend predicted image with known pixels from the original image
-                pred_image = mask[i] * masked_image[i] + (1 - mask[i]) * pred_image[0]
+                pred_image = norm_mask[i] * masked_img[i] + (1 - norm_mask[i]) * pred_image[0]
 
                 # Remix the predicted components using the next signal and noise rates
                 next_diffusion_time = diffusion_time - step_size
@@ -403,11 +411,10 @@ class DiffusionModel(keras.Model):
                 # This new noisy image will be used in the next step
             
             pred_images.append(pred_image)
-            pred_image = self.denormalize(pred_image)
-        
-        return np.stack(pred_images)
+        pred_images = np.stack(pred_images)
 
-            
+        return self.denormalize(pred_images)
+
     def repaint(self, img, mask, diffusion_steps):
         """
         RePaint-style inpainting with context preservation and noise resampling

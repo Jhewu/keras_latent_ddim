@@ -253,8 +253,14 @@ def ContextualInpainting():
     mask = cv.imread(mask_path, cv.IMREAD_COLOR)
 
     # Run RePaint algorithm
-    inpainted_images = model.inpaint(image, mask, diffusion_steps=50)
+
+
+    """Eliminate right away"""
+    inpainted_images = model.contextual_inpaint(image, mask, diffusion_steps=30)
     #inpainted_images = model.repaint(image, mask, diffusion_steps=50)
+
+    plt.imshow(inpainted_images[0])
+    plt.show()
 
     # Save the inpainted image in model directory
     inpainted_dir = os.path.join(folder_path, "inpainted_images")
