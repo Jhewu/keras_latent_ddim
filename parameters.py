@@ -13,7 +13,7 @@ img_folder_name = "flow_large"            # must be in cwd
                                     # where the training dataset is
 folder_path = "all_exp/exp2"
 
-run_description = "checking if latent diffusion model works"
+run_description = "checking if latent diffusion model works, running for longer periods, this one does not contain dowmsampling blocks"
 
 # Create the folder if it exists
 if not os.path.exists(folder_path): 
@@ -26,7 +26,7 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
-runtime = "inference"
+runtime = "training"
                                     # if it's "training," it's in training mode
                                     # if it's "inference," it's in inference mode
                                     # if It's "inpaint," it's in inpainting mode
@@ -68,7 +68,7 @@ block_depth = 3
 # callback param
 checkpoint_monitor = "val_kid"
 early_stop_monitor = "val_kid"
-early_stop_min_delta = 2.5e-5
+early_stop_min_delta = learning_rate/10
 early_stop_patience = 25
 early_stop_start_epoch = 50
 plot_on_epoch = 100000

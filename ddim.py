@@ -207,24 +207,24 @@ def InferenceDiffusionModel():
     model.normalizer.adapt(train_dataset) 
     model.load_weights(checkpoint_path)
 
-    # Generate the images
-    generated_images = model.generate(images_to_generate, generate_diffusion_steps, True)
+    # # Generate the images
+    # generated_images = model.generate(images_to_generate, generate_diffusion_steps, True)
 
-    # Create directory in model's folder and save the images
-    generated_dir = os.path.join(folder_path, "generated_images")
-    if not os.path.exists(generated_dir): 
-        os.makedirs(generated_dir)
+    # # Create directory in model's folder and save the images
+    # generated_dir = os.path.join(folder_path, "generated_images")
+    # if not os.path.exists(generated_dir): 
+    #     os.makedirs(generated_dir)
 
-    print(np.max(generated_images[0]))
-    print(np.min(generated_images[0]))
+    # print(np.max(generated_images[0]))
+    # print(np.min(generated_images[0]))
 
-    print(generated_images[0])
+    # print(generated_images[0])
 
-    index = 1
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    for image in generated_images: 
-        tf.keras.preprocessing.image.save_img(f"{generated_dir}/{timestamp}_generated_img_{index}.jpg", image) 
-        index = index + 1
+    # index = 1
+    # timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    # for image in generated_images: 
+    #     tf.keras.preprocessing.image.save_img(f"{generated_dir}/{timestamp}_generated_img_{index}.jpg", image) 
+    #     index = index + 1
 
 def ContextualInpainting(): 
     """
@@ -261,7 +261,6 @@ def ContextualInpainting():
     mask = cv.imread(mask_path, cv.IMREAD_COLOR)
 
     # Run RePaint algorithm
-
 
     """Eliminate right away"""
     inpainted_images = model.contextual_inpaint(image, mask, diffusion_steps=30)

@@ -49,10 +49,14 @@ class DiffusionModel(keras.Model):
         self.noise_loss_tracker = keras.metrics.Mean(name="n_loss")
         self.image_loss_tracker = keras.metrics.Mean(name="i_loss") # initializing the metrics
         self.kid = KID(name="kid")                                  # from the KID class
+        self.reconstruction_loss_tracker = keras.metrics.Mean(
+            name="reconstruction_loss"
+        )
+        self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
 
     @property
     def metrics(self):
-        return [self.noise_loss_tracker, self.image_loss_tracker, self.kid] # initialize class metrics
+        return [self.noise_loss_tracker, self.image_loss_tracker, self.kid, self.kl_loss_tracker, self.reconstruction_loss_tracker] # initialize class metrics
 
     def denormalize(self, images):
         # convert the pixel values back to 0-1 range
@@ -186,7 +190,7 @@ class DiffusionModel(keras.Model):
         IMPORTANT
         """
         # encode the images and create noise with same shape
-        _, _, z_images = self.vae.encoder(images)
+        z_mean, z_log_var, z_images = self.vae.encoder(images)
         z_noises = keras.random.normal(shape=(batch_size, self.encoder_final_size.output.shape[1], 
                                               self.encoder_final_size.output.shape[2], 
                                               self.encoder_final_size.output.shape[3]))
@@ -203,6 +207,7 @@ class DiffusionModel(keras.Model):
         noisy_images = signal_rates * z_images + noise_rates * z_noises
 
         with tf.GradientTape() as tape:
+            """Calculate Diffusion Loss"""
             # train the network to separate noisy images to their components
                 # denoise images into predicted noise and image components
             pred_noises, pred_images = self.denoise( # denoise is used for training
@@ -212,6 +217,17 @@ class DiffusionModel(keras.Model):
             # compute noise loss (used for training) and image loss (used as a metric).
             noise_loss = self.loss(z_noises, pred_noises)  # used for training
             image_loss = self.loss(z_images, pred_images)  # only used as metric
+
+            """Calculate VAE Loss"""
+            reconstruction = self.vae.decoder(z_noises)
+            reconstruction_loss = ops.mean(
+                ops.sum(
+                    keras.losses.binary_crossentropy(images, reconstruction),
+                    axis=(1, 2),
+                )
+            )
+            kl_loss = -0.5 * tf.reduce_sum(1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var), axis=-1)
+            kl_loss = tf.reduce_mean(kl_loss)
             """
             What is tf.GradientTape()? 
                 Allows you to compute gradients during training for various neural network architectures
@@ -226,6 +242,7 @@ class DiffusionModel(keras.Model):
                         operations using the tape.
             """
         
+        """ADD TOTAL LOSS IN ANOTHER EXPERIMENT LATER"""
         # compute gradients and update network weights using the optimizer.
         gradients = tape.gradient(noise_loss, self.network.trainable_weights)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_weights))
@@ -234,6 +251,8 @@ class DiffusionModel(keras.Model):
 
         self.noise_loss_tracker.update_state(noise_loss)
         self.image_loss_tracker.update_state(image_loss)
+        self.reconstruction_loss_tracker.update_state(reconstruction_loss)
+        self.kl_loss_tracker.update_state(kl_loss)
 
         # track the exponential moving averages of weights
         for weight, ema_weight in zip(self.network.weights, self.ema_network.weights):
@@ -249,7 +268,7 @@ class DiffusionModel(keras.Model):
         # measures the Kernel Inception Distance (KID) between real and generated images.
         # KID computation is computationally demanding, so kid_diffusion_steps should be small.
        
-        _, _, z_images = self.vae.encode(images)
+        _, _, z_images = self.vae.encoder(images)
         z_noises = keras.random.normal(shape=(batch_size, self.encoder_final_size.output.shape[1], 
                                               self.encoder_final_size.output.shape[2], 
                                               self.encoder_final_size.output.shape[3]))
