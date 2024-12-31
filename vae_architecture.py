@@ -109,7 +109,7 @@ class VAE(keras.Model):
         }
     def encode(self, image): 
         # returns z_mean, z_log_var, and z
-        return self.encoder.predict(image)
+        return self.encoder(image)
     def decode(self, z): 
         # returns the decoded image
-        return self.decoder.predict(z)
+        return self.decoder(z)

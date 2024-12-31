@@ -7,3 +7,5 @@ mask_and_image/
 sh_scripts/
 archive_parameters/
 vae_weights/
+balanced_1/
+test.py

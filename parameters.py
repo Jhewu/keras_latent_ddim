@@ -11,7 +11,7 @@ import os
 folder_name = "ct_deep_river_diffusion"
 img_folder_name = "flow_large"            # must be in cwd
                                     # where the training dataset is
-folder_path = "exp1"
+folder_path = "all_exp/exp2"
 
 run_description = "checking if latent diffusion model works"
 
@@ -26,7 +26,7 @@ logging.basicConfig(filename=f'{folder_path}/model_parameters.log', level=loggin
 
 """ TRAINING PARAMETERS """
 # TRAINING PARAMETERS
-runtime = "training"
+runtime = "inference"
                                     # if it's "training," it's in training mode
                                     # if it's "inference," it's in inference mode
                                     # if It's "inpaint," it's in inpainting mode
@@ -34,7 +34,7 @@ load_and_train = False
 
 
 # MODEL PARAMETERS
-image_size = (200,600)
+image_size = (192,592)
                                      # for 200x600 is 200, 600 (for 2 downsampling blocks)
 
 # preprocessing
@@ -44,7 +44,7 @@ pad_to_aspect_ratio = False
 crop_to_aspect_ratio = True     
 
 # optimization
-num_epochs = 100
+num_epochs = 5
 batch_size = 4
 dataset_repetitions = 1
 ema = 0.999
@@ -74,7 +74,7 @@ early_stop_start_epoch = 50
 plot_on_epoch = 100000
 
 """ INFERENCE PARAMETERS """
-images_to_generate = 1
+images_to_generate = 5
 generate_diffusion_steps = 30
 
 """ INPAINTING PARAMETERS """
@@ -82,11 +82,12 @@ inpainting_dir = "inpainting_data"
 MASK_AND_IMAGE_DIR = "mask_and_image"
 
 """VAE PARAMETERS"""
-VAE_IMAGE_SIZE = (192, 592)
+VAE_IMAGE_SIZE = image_size
 VAE_LATENT_DIM = 512
 VAE_CONV_WIDTHS = [32, 64, 128, 256]
-VAE_CONV_DEPTH = [3, 3, 3, 3]
-VAE_CONV_KERNEL = 0
+VAE_CONV_KERNEL = [3, 3, 3, 3]
+VAE_CONV_DEPTH = 0
+VAE_LOAD_WEIGHT_PATH = "vae_weights/last.weights.h5"
 
 # Log all variables
 logging.info("----------")

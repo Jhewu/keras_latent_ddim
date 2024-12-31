@@ -23,6 +23,7 @@ from parameters import (max_signal_rate, min_signal_rate,
                       ema, plot_diffusion_steps, folder_path, generate_diffusion_steps,
                       VAE_IMAGE_SIZE, VAE_LATENT_DIM, VAE_CONV_WIDTHS, VAE_CONV_DEPTH,
                       VAE_CONV_KERNEL)
+
 from vae_architecture import *
 
 @keras.saving.register_keras_serializable()
@@ -30,12 +31,14 @@ class DiffusionModel(keras.Model):
     def __init__(self, image_size, widths, block_depth):
         super().__init__()
 
-        self.normalizer = layers.Normalization()                    # for pixel normalization
-        self.network = get_network(image_size, widths, block_depth) # obtaining the U-NET
-        self.ema_network = keras.models.clone_model(self.network)   # EMA version of the network
-
         # build the vae 
-        self.vae = VAE(VAE_IMAGE_SIZE, Build_Encoder(VAE_IMAGE_SIZE, VAE_CONV_WIDTHS, VAE_CONV_DEPTH, VAE_CONV_KERNEL, VAE_LATENT_DIM).get_layer("conv_z_log_var"), VAE_CONV_WIDTHS, VAE_CONV_DEPTH, VAE_CONV_KERNEL, VAE_LATENT_DIM)
+        self.encoder_final_size = Build_Encoder(VAE_IMAGE_SIZE, VAE_CONV_WIDTHS, VAE_CONV_DEPTH, VAE_CONV_KERNEL, VAE_LATENT_DIM).get_layer("conv_z_log_var")
+        self.vae = VAE(VAE_IMAGE_SIZE, self.encoder_final_size, VAE_CONV_WIDTHS, VAE_CONV_DEPTH, VAE_CONV_KERNEL, VAE_LATENT_DIM)
+
+        self.normalizer = layers.Normalization()                    # for pixel normalization
+
+        self.network = get_network(self.encoder_final_size.output.shape[1:], widths, block_depth) # obtaining the U-NET
+        self.ema_network = keras.models.clone_model(self.network)   # EMA version of the network
 
     def compile(self, **kwargs):
         # compile method is overridden to create custom metrics
@@ -88,19 +91,19 @@ class DiffusionModel(keras.Model):
 
         return pred_noises, pred_images
 
-    def reverse_diffusion(self, initial_noise, diffusion_steps):
+    def reverse_diffusion(self, z_noises, diffusion_steps):
             # performs reverse diffusion (sampling)
             # generates images from initial noise by iterating over diffusion steps.
             # at each step, it separates noisy images into components, denoises them,
                 # and remixes using next signal and noise rates.
 
-        num_images = initial_noise.shape[0]
+        num_images = z_noises.shape[0]
         step_size = 1.0 / diffusion_steps
 
         # important line:
             # at the first sampling step, the "noisy image" is pure noise
             # but its signal rate is assumed to be nonzero (min_signal_rate)
-        next_noisy_images = initial_noise
+        next_noisy_images = z_noises
         for step in range(diffusion_steps):
             noisy_images = next_noisy_images
 
@@ -124,9 +127,9 @@ class DiffusionModel(keras.Model):
             )
             # this new noisy image will be used in the next step
 
-        return pred_images
+        return self.vae.decoder(pred_images)
     
-    def reverse_diffusion_single(self, initial_noise, diffusion_steps):
+    def reverse_diffusion_single(self, z_noises, diffusion_steps):
         """
         Custom Reverse Diffusion 
         - Performs reverse diffusion (sampling), not simultaneously, but per image
@@ -136,8 +139,8 @@ class DiffusionModel(keras.Model):
         step_size = 1.0 / diffusion_steps
         pred_images = []
 
-        for i in range(initial_noise.shape[0]):  # Iterate over each image
-            next_noisy_image = initial_noise[i]
+        for i in range(z_noises.shape[0]):  # Iterate over each image
+            next_noisy_image = z_noises[i]
             
             for step in range(diffusion_steps):
                 noisy_image = next_noisy_image
@@ -157,7 +160,7 @@ class DiffusionModel(keras.Model):
                 )[0]
                 # This new noisy image will be used in the next step
             pred_images.append(pred_image[0])
-        return np.stack(pred_images)
+        return self.vae.decoder(np.stack(pred_images))
 
     def generate(self, num_images, diffusion_steps, single):
         """
@@ -165,15 +168,16 @@ class DiffusionModel(keras.Model):
         """
         # noise to images to denormalized images
         # uses reverse diffusion (above)
-        initial_noise = keras.random.normal(
-            shape=(num_images, image_size[0], image_size[1], 3)
-        )
+
+        z_noises = keras.random.normal(shape=(num_images, self.encoder_final_size.output.shape[1], 
+                                              self.encoder_final_size.output.shape[2], 
+                                              self.encoder_final_size.output.shape[3]))
         if single == True:
-            generated_images = self.reverse_diffusion_single(initial_noise, diffusion_steps)
-            generated_images = self.denormalize(generated_images)
+            generated_images = self.reverse_diffusion_single(z_noises, diffusion_steps)
+            # generated_images = self.denormalize(generated_images)
         else:
-            generated_images = self.reverse_diffusion(initial_noise, diffusion_steps)
-            generated_images = self.denormalize(generated_images)
+            generated_images = self.reverse_diffusion(z_noises, diffusion_steps)
+            # generated_images = self.denormalize(generated_images)
                 # denormalize is to take an image and convert it back to [0, 256] RGB
         return generated_images
 
@@ -181,10 +185,11 @@ class DiffusionModel(keras.Model):
         """ 
         IMPORTANT
         """
-        # normalize images to have standard deviation of 1, like the noises
-        images = self.normalizer(images, training=True) # from init()
-        noises = keras.random.normal(shape=(batch_size, image_size[0], image_size[1], 3))
-            # generate random noises
+        # encode the images and create noise with same shape
+        _, _, z_images = self.vae.encoder(images)
+        z_noises = keras.random.normal(shape=(batch_size, self.encoder_final_size.output.shape[1], 
+                                              self.encoder_final_size.output.shape[2], 
+                                              self.encoder_final_size.output.shape[3]))
 
         # sample uniform random diffusion times
         diffusion_times = keras.random.uniform(
@@ -195,7 +200,7 @@ class DiffusionModel(keras.Model):
         noise_rates, signal_rates = self.diffusion_schedule(diffusion_times)
         
         # mix the images with noises accordingly
-        noisy_images = signal_rates * images + noise_rates * noises
+        noisy_images = signal_rates * z_images + noise_rates * z_noises
 
         with tf.GradientTape() as tape:
             # train the network to separate noisy images to their components
@@ -205,8 +210,8 @@ class DiffusionModel(keras.Model):
             )
 
             # compute noise loss (used for training) and image loss (used as a metric).
-            noise_loss = self.loss(noises, pred_noises)  # used for training
-            image_loss = self.loss(images, pred_images)  # only used as metric
+            noise_loss = self.loss(z_noises, pred_noises)  # used for training
+            image_loss = self.loss(z_images, pred_images)  # only used as metric
             """
             What is tf.GradientTape()? 
                 Allows you to compute gradients during training for various neural network architectures
@@ -244,31 +249,34 @@ class DiffusionModel(keras.Model):
         # measures the Kernel Inception Distance (KID) between real and generated images.
         # KID computation is computationally demanding, so kid_diffusion_steps should be small.
        
-        # normalize images to have standard deviation of 1, like the noises
-        images = self.normalizer(images, training=False)
-        noises = keras.random.normal(shape=(batch_size, image_size[0], image_size[1], 3))
+        _, _, z_images = self.vae.encode(images)
+        z_noises = keras.random.normal(shape=(batch_size, self.encoder_final_size.output.shape[1], 
+                                              self.encoder_final_size.output.shape[2], 
+                                              self.encoder_final_size.output.shape[3]))
 
         # sample uniform random diffusion times
         diffusion_times = keras.random.uniform(
             shape=(batch_size, 1, 1, 1), minval=0.0, maxval=1.0
         )
         noise_rates, signal_rates = self.diffusion_schedule(diffusion_times)
-        noisy_images = signal_rates * images + noise_rates * noises
+        noisy_images = signal_rates * z_images + noise_rates * z_noises
 
         # use the network to separate noisy images to their components
         pred_noises, pred_images = self.denoise(
             noisy_images, noise_rates, signal_rates, training=False
         )
 
-        noise_loss = self.loss(noises, pred_noises)
-        image_loss = self.loss(images, pred_images)
+        noise_loss = self.loss(z_noises, pred_noises)
+        image_loss = self.loss(z_images, pred_images)
 
         self.image_loss_tracker.update_state(image_loss)
         self.noise_loss_tracker.update_state(noise_loss)
 
         # measure KID between real and generated images
         # this is computationally demanding, kid_diffusion_steps has to be small
-        images = self.denormalize(images)
+        # images = self.denormalize(images)
+        
+        # compare original images with generated images 
         generated_images = self.generate(
             num_images=batch_size, diffusion_steps=kid_diffusion_steps, single=False
         )
@@ -276,6 +284,7 @@ class DiffusionModel(keras.Model):
 
         return {m.name: m.result() for m in self.metrics}
 
+    """NOT UPDAYED YET"""
     def plot_images(self, epoch=None, logs=None, num_rows=3, num_cols=3):
         # generates random images for visual evaluation.
         # plots a grid of generated images.
@@ -305,6 +314,7 @@ class DiffusionModel(keras.Model):
         #plt.show()
         plt.close()
 
+    """NOT UPDATED YET FOR ANY OF THE INPAINT"""
     def simple_inpaint(self, img, mask, diffusion_steps=generate_diffusion_steps):
         """
         The Simplest form of inpainting

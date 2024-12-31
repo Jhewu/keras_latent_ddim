@@ -18,6 +18,7 @@ import cv2 as cv
 import logging
 from datetime import datetime
 import shutil
+import numpy as np
 
 # import from local scripts
 from diffusion_model import DiffusionModel
@@ -156,43 +157,43 @@ def TrainDiffusionModel():
 
     # Create and compile the model
     model = DiffusionModel(image_size, widths, block_depth)
+    model.vae.load_weights(VAE_LOAD_WEIGHT_PATH)
 
-    print(model.vae)
-    # model.compile(
-    #     optimizer=keras.optimizers.AdamW(
-    #         learning_rate=learning_rate, weight_decay=weight_decay
-    #     ),
-    #     loss=keras.losses.mean_absolute_error,
-    #     # Loss function: Pixelwise mean absolute error (MAE).
-    # )
+    model.compile(
+        optimizer=keras.optimizers.AdamW(
+            learning_rate=learning_rate, weight_decay=weight_decay
+        ),
+        loss=keras.losses.mean_absolute_error,
+        # Loss function: Pixelwise mean absolute error (MAE).
+    )
 
-    # # Calculate mean and variance of training dataset for normalization
-    # model.normalizer.adapt(train_dataset)
-    #     # The adapt method is called on the normalizer using the training dataset.
-    #     # This calculates the mean and variance of the training dataset for normalization.
+    # Calculate mean and variance of training dataset for normalization
+    model.normalizer.adapt(train_dataset)
+        # The adapt method is called on the normalizer using the training dataset.
+        # This calculates the mean and variance of the training dataset for normalization.
+    
+    if load_and_train: 
+        model.load_weights(checkpoint_path)
 
-    # if load_and_train: 
-    #     model.load_weights(checkpoint_path)
+    history = model.fit(
+        train_dataset,
+        epochs=num_epochs,
+        validation_data=val_dataset,
+        callbacks=[
+            early_stop_callback,
+            custom_csv_logger,
+            plot_image_callback,
+            checkpoint_callback, 
+        ],
+    )
 
-    # history = model.fit(
-    #     train_dataset,
-    #     epochs=num_epochs,
-    #     validation_data=val_dataset,
-    #     callbacks=[
-    #         early_stop_callback,
-    #         custom_csv_logger,
-    #         plot_image_callback,
-    #         checkpoint_callback, 
-    #     ],
-    # )
+    # Copy parameters file into the model folder
+    shutil.copy("parameters.py", f"{folder_path}/")
+    print(f"Parameters copied to {folder_path}/\n")
 
-    # # Copy parameters file into the model folder
-    # shutil.copy("parameters.py", f"{folder_path}/")
-    # print(f"Parameters copied to {folder_path}/\n")
-
-    # # Save the key loss metrics 
-    # dict_key_list = ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]
-    # save_history(history, dict_key_list)
+    # Save the key loss metrics 
+    dict_key_list = ["i_loss", "n_loss", "val_i_loss", "val_kid", "val_n_loss"]
+    save_history(history, dict_key_list)
 
 def InferenceDiffusionModel(): 
     """
@@ -213,6 +214,11 @@ def InferenceDiffusionModel():
     generated_dir = os.path.join(folder_path, "generated_images")
     if not os.path.exists(generated_dir): 
         os.makedirs(generated_dir)
+
+    print(np.max(generated_images[0]))
+    print(np.min(generated_images[0]))
+
+    print(generated_images[0])
 
     index = 1
     timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -281,6 +287,8 @@ if __name__ == "__main__":
     """
     print(keras.__version__)
     print(tf.__version__)
+
+    tf.config.run_functions_eagerly(True)
 
     # Show if GPU is being used
     print(f"\nNum GPUs Available: {len(tf.config.list_physical_devices('GPU'))}\n")

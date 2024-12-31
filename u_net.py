@@ -35,9 +35,11 @@ def ResidualBlock(width): # width specify the number of output channels
             residual = x # set residual to be the same as x if it matches
         else:
             residual = layers.Conv2D(width, kernel_size=1)(x) # set residual to the desired width
-        x = layers.BatchNormalization(center=False, scale=False)(x)
-        x = layers.Conv2D(width, kernel_size=3, padding="same", activation="swish")(x)
+            x = layers.ReLU()(x)
+            x = layers.BatchNormalization()(x)
         x = layers.Conv2D(width, kernel_size=3, padding="same")(x)
+        x = layers.ReLU()(x)
+        x = layers.BatchNormalization()(x)
         x = layers.Add()([x, residual])
         return x
     return apply
@@ -59,14 +61,15 @@ def DownBlock(width, block_depth):
         # downsampling block
     def apply(x):
         x, skips = x
+        tf.print("this is x ", x.shape)
         for _ in range(block_depth):
             x = ResidualBlock(width)(x)
             skips.append(x)
-        x = layers.AveragePooling2D(pool_size=2)(x) 
-            # average pooling reduces spatial dimensions
+        x = layers.Conv2D(width, kernel_size=3, strides=1, padding="same")(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)  
         return x
     return apply
-        # returns the downsampled tensor
 
 """
 HIGH LEVEL SUMMARY:
@@ -82,10 +85,12 @@ def UpBlock(width, block_depth):
     # same parameters as downblock with width and block_depth
     def apply(x):
         x, skips = x
-        x = layers.UpSampling2D(size=2, interpolation="bilinear")(x) # upsampling here
+        x = layers.Conv2DTranspose(width, kernel_size=3, strides=1, padding="same")(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)
         for _ in range(block_depth):
             a = skips.pop()
-            # print("this is the concatenate (layer, skip):",  x, "and", a)
+            print("this is the concatenate (layer, skip):",  x, "and", a)
             x = layers.Concatenate()([x, a]) # concatenates the upsampled tensor with
             x = ResidualBlock(width)(x)                # the last tensor stored in skips (a stack)
         return x
@@ -101,25 +106,27 @@ HIGH LEVEL SUMMARY:
     - Check comments for more information
 """
 @keras.saving.register_keras_serializable()
-def get_network(image_size, widths, block_depth):
-    noisy_images = keras.Input(shape=(image_size[0], image_size[1], 3)) # Input for noisy images
-    noise_variances = keras.Input(shape=(1, 1, 1))                # Input for noise variances
+def get_network(latent_size, widths, block_depth):
+    noisy_latents = keras.Input(shape=(latent_size[0], latent_size[1], latent_size[2])) # Input for noisy images
+    noise_variances = keras.Input(shape=(1, 1, 1))                      # Input for noise variances
 
-    #print("this is noisy images", noisy_images)
-
+    # from our custom Sinusoidal Embeddig Layer 
     sinusoidal_layer = SinusoidalEmbedding(embedding_dims) 
-        # from our custom Sinusoidal Embeddig Layer 
     
     # Call the layer with your input (e.g., noise_variances)
     e = sinusoidal_layer(noise_variances)
-    e = layers.UpSampling2D(size=image_size, interpolation="nearest")(e)
-        # noise variances inputwidthed to sinusoidal layer
-        # then to upsampling using nearest neighbor interpolation
+    e = layers.UpSampling2D(size=latent_size[:2], interpolation="nearest")(e)
 
-    x = layers.Conv2D(widths[0], kernel_size=1)(noisy_images)
+    x = layers.Conv2D(widths[0], kernel_size=1)(noisy_latents)
     x = layers.Concatenate()([x, e])
         # noisy images input into Conv2D 
         # output is concatenated with e
+
+    """ELIMINATE LATER"""
+    #time_emb = SinusoidalEmbedding(embedding_dims)(noise_variances)
+    #time_emb = layers.Dense(embedding_dims * 4)(time_emb)
+    #time_emb = layers.ReLU()(time_emb)
+    #time_emb = layers.Dense(embedding_dims * 4)(time_emb)
 
     skips = [] # skip is a list
     for width in widths[:-1]:
@@ -143,8 +150,6 @@ def get_network(image_size, widths, block_depth):
                 # of filters
         #print("this is upblock shape", x)
 
-    x = layers.Conv2D(3, kernel_size=1, kernel_initializer="zeros")(x)
-        # final convolution, 1x1 convolution with 3 channels (RGB) is applied to the output
+    x = layers.Conv2D(latent_size[2], kernel_size=1, kernel_initializer="zeros")(x)
 
-    return keras.Model([noisy_images, noise_variances], x, name="residual_unet")
-
+    return keras.Model([noisy_latents, noise_variances], x, name="residual_unet")
